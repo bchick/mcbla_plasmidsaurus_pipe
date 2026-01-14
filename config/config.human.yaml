@@ -1,0 +1,101 @@
+# ==============================================================================
+# config.human.yaml - Pipeline Configuration for Human (GRCh38) samples
+# ==============================================================================
+# Pre-configured for human RNA-seq analysis using GENCODE v44 annotations
+#
+# Usage:
+#   ./run_pipeline.sh -i data/fastq/ -o results/ -c config/config.human.yaml \
+#       -m config/samples.tsv
+#
+# ==============================================================================
+
+# ==============================================================================
+# REFERENCE FILES
+# ==============================================================================
+reference:
+  # Human reference genome (GRCh38 primary assembly)
+  genome_fasta: "/data/resource/genomes/GRCh38.p14.star/source/GRCh38.primary_assembly.genome.fa"
+
+  # GENCODE v44 gene annotation
+  gtf: "/data/resource/genomes/GRCh38.p14.star/source/gencode.v44.primary_assembly.annotation.gtf"
+
+  # Pre-built STAR genome index
+  star_index: "/data/resource/genomes/GRCh38.p14.star"
+
+  # BED12 gene model for RSeQC
+  gene_model_bed: "/data/resource/genomes/GRCh38.p14.star/source/gencode.v44.genes.bed12"
+
+  # Organism for functional enrichment
+  organism: "human"
+
+# ==============================================================================
+# INPUT/OUTPUT PATHS
+# ==============================================================================
+paths:
+  input_dir: "data/fastq"
+  output_dir: "results"
+  log_dir: "logs"
+
+# ==============================================================================
+# SAMPLE INFORMATION
+# ==============================================================================
+samples:
+  metadata: "config/samples.tsv"
+  paired_end: true
+
+# ==============================================================================
+# FASTP - READ FILTERING
+# ==============================================================================
+fastp:
+  qualified_quality_phred: 15
+  length_required: 50
+  trim_poly_x: true
+  threads: 8
+
+# ==============================================================================
+# STAR - ALIGNMENT
+# ==============================================================================
+star:
+  threads: 16
+  outFilterMultimapNmax: 20
+  alignSJoverhangMin: 8
+  alignSJDBoverhangMin: 1
+  outFilterMismatchNoverReadLmax: 0.04
+  alignIntronMin: 20
+  alignIntronMax: 1000000
+  outReadsUnmapped: "Fastx"
+  outFilterType: "BySJout"
+
+# ==============================================================================
+# FEATURECOUNTS - QUANTIFICATION
+# ==============================================================================
+featurecounts:
+  feature_type: "exon"
+  attribute_type: "gene_id"
+  strand: 2  # Reverse stranded (typical for Illumina dUTP)
+  count_multimapping: true
+  fraction: true
+  min_mapping_quality: 10
+  threads: 8
+
+# ==============================================================================
+# EDGER - DIFFERENTIAL EXPRESSION
+# ==============================================================================
+edger:
+  min_count: 10
+  fdr_threshold: 0.05
+  lfc_threshold: 1.0
+  # Define your contrasts here (format: treatment-control)
+  contrasts:
+    - "treatment-control"
+
+# ==============================================================================
+# GSEAPY - FUNCTIONAL ENRICHMENT
+# ==============================================================================
+gsea:
+  gene_sets:
+    - "MSigDB_Hallmark_2020"
+  min_size: 15
+  max_size: 500
+  permutation_num: 1000
+  fdr_threshold: 0.25

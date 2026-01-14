@@ -1,0 +1,124 @@
+# ==============================================================================
+# .gitignore - Files and directories excluded from version control
+# ==============================================================================
+# This file specifies intentionally untracked files that Git should ignore.
+# See: https://git-scm.com/docs/gitignore
+
+# ==============================================================================
+# DATA FILES
+# ==============================================================================
+# Raw and processed data files (too large for version control)
+data/
+!data/.gitkeep
+
+# ==============================================================================
+# RESULTS AND OUTPUT
+# ==============================================================================
+# Pipeline outputs (regenerable from source data)
+results/
+!results/.gitkeep
+
+# ==============================================================================
+# LOGS
+# ==============================================================================
+# Pipeline execution logs
+logs/
+!logs/.gitkeep
+
+# ==============================================================================
+# SEQUENCING DATA FORMATS
+# ==============================================================================
+# FASTQ files (raw sequencing reads)
+*.fastq
+*.fastq.gz
+*.fq
+*.fq.gz
+
+# FASTA files (reference sequences)
+*.fasta
+*.fasta.gz
+*.fa
+*.fa.gz
+
+# Alignment files
+*.sam
+*.bam
+*.bam.bai
+*.cram
+*.cram.crai
+
+# BED and interval files
+*.bed
+*.bedGraph
+*.bigWig
+*.bw
+
+# VCF files
+*.vcf
+*.vcf.gz
+*.vcf.gz.tbi
+
+# ==============================================================================
+# REFERENCE GENOME INDICES
+# ==============================================================================
+# STAR genome index
+*_STARindex/
+*_star_index/
+
+# Bowtie2 index
+*.bt2
+*.bt2l
+
+# BWA index
+*.amb
+*.ann
+*.bwt
+*.pac
+*.sa
+
+# Samtools/tabix index
+*.fai
+*.tbi
+
+# ==============================================================================
+# TEMPORARY AND CACHE FILES
+# ==============================================================================
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/
+
+# Editor backup files
+*~
+*.swp
+*.swo
+.*.swp
+
+# macOS
+.DS_Store
+.AppleDouble
+.LSOverride
+
+# Linux
+.directory
+
+# ==============================================================================
+# IDE AND EDITOR SETTINGS
+# ==============================================================================
+.vscode/
+.idea/
+*.sublime-project
+*.sublime-workspace
+
+# ==============================================================================
+# ENVIRONMENT AND SECRETS
+# ==============================================================================
+# Environment files (may contain paths or credentials)
+.env
+.env.local
+*.env
+
+# Conda environments
+envs/
+.conda/

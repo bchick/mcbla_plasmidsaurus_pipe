@@ -1,0 +1,243 @@
+# ==============================================================================
+# config.template.yaml - Pipeline Configuration Template
+# ==============================================================================
+# Copy this file to config.yaml and modify the values for your analysis.
+#
+# Usage:
+#   cp config/config.template.yaml config/config.yaml
+#   # Edit config/config.yaml with your paths and parameters
+#
+# ==============================================================================
+
+# ==============================================================================
+# REFERENCE FILES
+# ==============================================================================
+reference:
+  # Path to reference genome FASTA file
+  genome_fasta: "/path/to/genome.fa"
+
+  # Path to gene annotation GTF file
+  gtf: "/path/to/annotation.gtf"
+
+  # Path to STAR genome index directory
+  # If not provided, the pipeline can generate it
+  star_index: "/path/to/star_index"
+
+  # Organism for enrichment analysis
+  # Options: "human", "mouse"
+  organism: "human"
+
+# ==============================================================================
+# INPUT/OUTPUT PATHS
+# ==============================================================================
+paths:
+  # Directory containing input FASTQ files
+  input_dir: "data/fastq"
+
+  # Directory for output results
+  output_dir: "results"
+
+  # Directory for log files
+  log_dir: "logs"
+
+# ==============================================================================
+# SAMPLE INFORMATION
+# ==============================================================================
+samples:
+  # Sample metadata file (TSV format)
+  # Required columns: sample_id, fastq_r1, fastq_r2, condition
+  # Optional columns: batch, replicate
+  metadata: "config/samples.tsv"
+
+  # FASTQ file naming pattern (regex)
+  # Use {sample} as placeholder for sample name
+  fastq_pattern: "{sample}_R1.fastq.gz"
+
+  # Are samples paired-end?
+  paired_end: true
+
+# ==============================================================================
+# FASTP - READ FILTERING (Step 2)
+# ==============================================================================
+fastp:
+  # Minimum Phred quality score
+  qualified_quality_phred: 15
+
+  # Minimum read length after trimming
+  length_required: 50
+
+  # Enable poly-X tail trimming
+  trim_poly_x: true
+
+  # Number of bases for 3' quality trimming
+  cut_tail_window_size: 4
+  cut_tail_mean_quality: 15
+
+  # Number of threads
+  threads: 8
+
+# ==============================================================================
+# STAR - ALIGNMENT (Step 3)
+# ==============================================================================
+star:
+  # Number of threads for alignment
+  threads: 16
+
+  # Maximum number of multiple alignments allowed
+  outFilterMultimapNmax: 20
+
+  # Minimum overhang for unannotated splice junctions
+  alignSJoverhangMin: 8
+
+  # Minimum overhang for annotated splice junctions
+  alignSJDBoverhangMin: 1
+
+  # Maximum number of mismatches per pair
+  outFilterMismatchNmax: 999
+
+  # Maximum ratio of mismatches to mapped length
+  outFilterMismatchNoverReadLmax: 0.04
+
+  # Alignment type for chimeric reads
+  alignIntronMin: 20
+  alignIntronMax: 1000000
+  alignMatesGapMax: 1000000
+
+  # Output unmapped reads
+  outReadsUnmapped: "Fastx"
+
+  # Remove non-canonical splice junctions
+  outFilterType: "BySJout"
+
+# ==============================================================================
+# SAMTOOLS - BAM PROCESSING (Step 4)
+# ==============================================================================
+samtools:
+  # Number of threads for sorting
+  threads: 8
+
+  # Memory per thread for sorting (e.g., "2G")
+  memory_per_thread: "2G"
+
+# ==============================================================================
+# UMICOLLAPSE - DEDUPLICATION (Step 5)
+# ==============================================================================
+umicollapse:
+  # UMI location in read name
+  # Options: "read_name", "read_sequence"
+  umi_location: "read_name"
+
+  # UMI separator in read name
+  umi_separator: ":"
+
+  # Algorithm for UMI grouping
+  # Options: "directional", "adjacency", "cluster"
+  algorithm: "directional"
+
+  # Edit distance threshold for UMI grouping
+  edit_distance: 1
+
+# ==============================================================================
+# RSEQC / QUALIMAP - MAPPING QC (Step 6)
+# ==============================================================================
+qc:
+  # BED file for gene model (for RSeQC)
+  gene_model_bed: "/path/to/gene_model.bed"
+
+  # Strandedness for RSeQC
+  # Options: "none", "forward", "reverse"
+  strandedness: "reverse"
+
+# ==============================================================================
+# FEATURECOUNTS - QUANTIFICATION (Step 8)
+# ==============================================================================
+featurecounts:
+  # Feature type to count
+  feature_type: "exon"
+
+  # Attribute type for grouping
+  attribute_type: "gene_id"
+
+  # Strandedness
+  # 0 = unstranded, 1 = forward, 2 = reverse
+  strand: 2
+
+  # Count multi-mapping reads
+  count_multimapping: true
+
+  # Fraction for multi-mapping reads
+  fraction: true
+
+  # Count reads overlapping multiple features
+  count_overlapping: true
+
+  # Minimum mapping quality
+  min_mapping_quality: 10
+
+  # Number of threads
+  threads: 8
+
+# ==============================================================================
+# EDGER - DIFFERENTIAL EXPRESSION (Steps 9-10)
+# ==============================================================================
+edger:
+  # Minimum count threshold for filterByExpr
+  min_count: 10
+
+  # Minimum total count threshold
+  min_total_count: 15
+
+  # Minimum proportion of samples with counts
+  min_prop: 0.7
+
+  # FDR threshold for significance
+  fdr_threshold: 0.05
+
+  # Log2 fold change threshold
+  lfc_threshold: 1.0
+
+  # Contrasts for differential expression
+  # Format: "condition1-condition2"
+  contrasts:
+    - "treatment-control"
+
+# ==============================================================================
+# GSEAPY - FUNCTIONAL ENRICHMENT (Step 11)
+# ==============================================================================
+gsea:
+  # Gene set database
+  # Options: "MSigDB_Hallmark", "KEGG", "GO_Biological_Process", etc.
+  gene_sets:
+    - "MSigDB_Hallmark_2020"
+
+  # Permutation type
+  # Options: "phenotype", "gene_set"
+  permutation_type: "phenotype"
+
+  # Number of permutations
+  permutation_num: 1000
+
+  # Minimum gene set size
+  min_size: 15
+
+  # Maximum gene set size
+  max_size: 500
+
+  # FDR threshold
+  fdr_threshold: 0.25
+
+# ==============================================================================
+# PIPELINE EXECUTION
+# ==============================================================================
+execution:
+  # Continue pipeline on non-critical errors
+  continue_on_error: false
+
+  # Generate checksums for reproducibility
+  generate_checksums: true
+
+  # Compress intermediate files
+  compress_intermediates: true
+
+  # Remove intermediate files after successful completion
+  cleanup_intermediates: false
