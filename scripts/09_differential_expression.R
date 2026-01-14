@@ -253,17 +253,41 @@ qlf_result <- glmQLFTest(fit, contrast = contrast_vector)
 
 # Extract results
 # topTags returns a table with logFC, logCPM, F-statistic, p-value, and FDR
+# It also includes gene annotations from dge$genes automatically
 de_results <- topTags(qlf_result, n = Inf, sort.by = "PValue")$table
 
-# Add gene information if available
-if (!is.null(dge$genes)) {
-    de_results <- cbind(
-        gene_id = rownames(de_results),
-        dge$genes[rownames(de_results), , drop = FALSE],
-        de_results
-    )
-} else {
-    de_results <- cbind(gene_id = rownames(de_results), de_results)
+# Add gene_id column from rownames
+de_results <- cbind(gene_id = rownames(de_results), de_results)
+
+# Clean up coordinate columns: featureCounts outputs semicolon-separated exon coordinates
+# We want single values: first Chr, min(Start), max(End), first Strand
+if ("Chr" %in% colnames(de_results)) {
+    # Extract first chromosome (should be same for all exons of a gene)
+    de_results$Chr <- sapply(strsplit(as.character(de_results$Chr), ";"), `[`, 1)
+}
+if ("Start" %in% colnames(de_results)) {
+    # Take minimum start position (gene start)
+    de_results$Start <- sapply(strsplit(as.character(de_results$Start), ";"), function(x) {
+        min(as.numeric(x), na.rm = TRUE)
+    })
+}
+if ("End" %in% colnames(de_results)) {
+    # Take maximum end position (gene end)
+    de_results$End <- sapply(strsplit(as.character(de_results$End), ";"), function(x) {
+        max(as.numeric(x), na.rm = TRUE)
+    })
+}
+if ("Strand" %in% colnames(de_results)) {
+    # Extract first strand value
+    de_results$Strand <- sapply(strsplit(as.character(de_results$Strand), ";"), `[`, 1)
+}
+if ("gene_name" %in% colnames(de_results)) {
+    # Clean gene_name if it has duplicates
+    de_results$gene_name <- sapply(strsplit(as.character(de_results$gene_name), ";"), `[`, 1)
+}
+if ("gene_biotype" %in% colnames(de_results)) {
+    # Clean gene_biotype if it has duplicates
+    de_results$gene_biotype <- sapply(strsplit(as.character(de_results$gene_biotype), ";"), `[`, 1)
 }
 
 # ==============================================================================
