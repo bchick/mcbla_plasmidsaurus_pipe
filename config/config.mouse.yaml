@@ -72,7 +72,7 @@ star:
 featurecounts:
   feature_type: "exon"
   attribute_type: "gene_id"
-  strand: 2  # Reverse stranded (typical for Illumina dUTP)
+  strand: 1  # Forward stranded (verified by RSeQC infer_experiment)
   count_multimapping: true
   fraction: true
   min_mapping_quality: 10

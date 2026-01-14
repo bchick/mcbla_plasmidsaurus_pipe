@@ -350,8 +350,8 @@ if ("condition" %in% colnames(metadata)) {
     )
     annotation_colors <- list(Condition = condition_colors)
 } else {
-    annotation_col <- NA
-    annotation_colors <- NA
+    annotation_col <- NULL
+    annotation_colors <- NULL
 }
 
 # ------------------------------------------------------------------
@@ -423,8 +423,8 @@ pheatmap(
     number_format = "%.2f",
     fontsize_number = 8,
     main = "Sample-Sample Correlation (Pearson)",
-    annotation_col = if (!is.na(annotation_col)) annotation_col else NULL,
-    annotation_colors = if (!is.na(annotation_colors)) annotation_colors else NULL
+    annotation_col = annotation_col,
+    annotation_colors = annotation_colors
 )
 dev.off()
 log_message("INFO", paste("Correlation heatmap saved:", cor_heatmap_file))
@@ -449,8 +449,8 @@ pheatmap(
     clustering_method = "complete",
     color = colorRampPalette(rev(brewer.pal(9, "RdYlBu")))(100),
     main = "Sample-Sample Distance (Euclidean)",
-    annotation_col = if (!is.na(annotation_col)) annotation_col else NULL,
-    annotation_colors = if (!is.na(annotation_colors)) annotation_colors else NULL
+    annotation_col = annotation_col,
+    annotation_colors = annotation_colors
 )
 dev.off()
 log_message("INFO", paste("Distance heatmap saved:", dist_heatmap_file))

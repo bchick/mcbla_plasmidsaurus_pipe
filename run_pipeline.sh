@@ -723,6 +723,10 @@ if [[ "${start_step}" -le 7 ]] && [[ "${end_step}" -ge 7 ]]; then
     [[ -z "${gtf_file}" ]] && die "GTF file not specified in config"
     [[ -f "${gtf_file}" ]] || die "GTF file not found: ${gtf_file}"
 
+    # Get strandedness from config (default: 2 = reverse stranded)
+    fc_strand=$(get_config "${config_file}" "strand")
+    fc_strand="${fc_strand:-2}"
+
     # Use original input directory for BAM input, otherwise use pipeline dedup output
     if [[ "${input_type}" == "bam" ]]; then
         bam_input_dir="${input_dir}"
@@ -734,7 +738,7 @@ if [[ "${start_step}" -le 7 ]] && [[ "${end_step}" -ge 7 ]]; then
         -i "${bam_input_dir}" \
         -g "${gtf_file}" \
         -o "${output_dir}/07_counts" \
-        -s 2 \
+        -s "${fc_strand}" \
         -t "${threads}" \
         2>&1 | tee -a "${output_dir}/logs/07_quantify.log"
 
