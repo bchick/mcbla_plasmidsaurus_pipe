@@ -267,6 +267,52 @@ if (!is.null(dge$genes)) {
 }
 
 # ==============================================================================
+# CALCULATE GROUP-LEVEL CPM STATISTICS
+# ==============================================================================
+
+log_message("INFO", "Calculating group-level CPM statistics...")
+
+# Get CPM values for all genes
+cpm_values <- cpm(dge, log = FALSE)
+
+# Identify samples in each group
+treatment_samples <- metadata$sample_id[metadata$condition == contrast$treatment]
+control_samples <- metadata$sample_id[metadata$condition == contrast$control]
+
+# Calculate mean and standard deviation for each group
+# Using the gene order from de_results to ensure alignment
+genes_order <- rownames(topTags(qlf_result, n = Inf, sort.by = "PValue")$table)
+
+treatment_cpm <- cpm_values[genes_order, treatment_samples, drop = FALSE]
+control_cpm <- cpm_values[genes_order, control_samples, drop = FALSE]
+
+# Calculate statistics
+treatment_avg <- rowMeans(treatment_cpm)
+treatment_sd <- apply(treatment_cpm, 1, sd)
+control_avg <- rowMeans(control_cpm)
+control_sd <- apply(control_cpm, 1, sd)
+
+# Add group statistics to results with dynamic column names
+group_stats <- data.frame(
+    treatment_avg,
+    treatment_sd,
+    control_avg,
+    control_sd
+)
+colnames(group_stats) <- c(
+    paste0(contrast$treatment, "_AvgCPM"),
+    paste0(contrast$treatment, "_StdDev"),
+    paste0(contrast$control, "_AvgCPM"),
+    paste0(contrast$control, "_StdDev")
+)
+
+de_results <- cbind(de_results, group_stats)
+
+log_message("INFO", sprintf("Added CPM statistics for groups: %s (n=%d), %s (n=%d)",
+                            contrast$treatment, length(treatment_samples),
+                            contrast$control, length(control_samples)))
+
+# ==============================================================================
 # SUMMARIZE RESULTS
 # ==============================================================================
 

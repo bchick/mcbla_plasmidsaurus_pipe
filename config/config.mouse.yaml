@@ -87,7 +87,7 @@ edger:
   lfc_threshold: 1.0
   # Define your contrasts here (format: treatment-control)
   contrasts:
-    - "treatment-control"
+    - "LIPA-US"
 
 # ==============================================================================
 # GSEAPY - FUNCTIONAL ENRICHMENT
