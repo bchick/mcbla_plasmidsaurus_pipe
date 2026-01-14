@@ -763,7 +763,7 @@ if [[ "${start_step}" -le 9 ]] && [[ "${end_step}" -ge 9 ]]; then
     print_step_header 9 "${STEP_NAMES[9]}"
 
     # Get contrast from config (default to a placeholder)
-    contrast=$(get_config "${config_file}" "contrasts")
+    contrast=$(get_config "${config_file}" "contrast")
     contrast="${contrast:-treatment-control}"
 
     run_cmd Rscript "${SCRIPTS_DIR}/09_differential_expression.R" \

@@ -231,7 +231,8 @@ if [[ "${paired_end}" == "auto" ]]; then
 
     # Use samtools to check if reads are paired
     # Check the FLAG field of the first 1000 reads for paired-end flag (0x1)
-    paired_count=$(samtools view "${first_bam}" 2>/dev/null | head -1000 | awk '$2 % 2 == 1 {count++} END {print count+0}')
+    # Use subshell to avoid SIGPIPE issues with head
+    paired_count=$(set +o pipefail; samtools view "${first_bam}" 2>/dev/null | head -1000 | awk '$2 % 2 == 1 {count++} END {print count+0}')
 
     if [[ "${paired_count}" -gt 500 ]]; then
         paired_end="yes"

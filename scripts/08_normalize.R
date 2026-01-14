@@ -164,6 +164,7 @@ if (length(annotation_cols) > 0) {
 
 # Clean sample names (remove path and extension artifacts)
 colnames(counts) <- gsub(".*\\/", "", colnames(counts))
+colnames(counts) <- gsub("_dedup-mapped-reads\\.bam$", "", colnames(counts))
 colnames(counts) <- gsub("\\.dedup\\.bam$", "", colnames(counts))
 colnames(counts) <- gsub("\\.sorted\\.bam$", "", colnames(counts))
 colnames(counts) <- gsub("\\.bam$", "", colnames(counts))
