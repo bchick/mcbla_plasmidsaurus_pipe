@@ -123,6 +123,7 @@ threads="${DEFAULT_THREADS}"
 feature="${DEFAULT_FEATURE}"
 attribute="${DEFAULT_ATTRIBUTE}"
 min_mapq="${DEFAULT_MIN_MAPQ}"
+paired_end="auto"  # auto, yes, no - auto-detect by default
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -156,6 +157,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -q|--min-mapq)
             min_mapq="$2"
+            shift 2
+            ;;
+        -p|--paired)
+            paired_end="$2"
             shift 2
             ;;
         -h|--help)
@@ -217,6 +222,27 @@ fi
 log "INFO" "Found ${#bam_files[@]} BAM file(s)"
 
 # ==============================================================================
+# DETECT PAIRED-END STATUS
+# ==============================================================================
+# Auto-detect paired-end status from the first BAM file if not specified
+if [[ "${paired_end}" == "auto" ]]; then
+    first_bam="${bam_files[0]}"
+    log "INFO" "Auto-detecting paired-end status from: $(basename "${first_bam}")"
+
+    # Use samtools to check if reads are paired
+    # Check the FLAG field of the first 1000 reads for paired-end flag (0x1)
+    paired_count=$(samtools view "${first_bam}" 2>/dev/null | head -1000 | awk '$2 % 2 == 1 {count++} END {print count+0}')
+
+    if [[ "${paired_count}" -gt 500 ]]; then
+        paired_end="yes"
+        log "INFO" "Detected: Paired-end reads (${paired_count}/1000 reads are paired)"
+    else
+        paired_end="no"
+        log "INFO" "Detected: Single-end reads (${paired_count}/1000 reads are paired)"
+    fi
+fi
+
+# ==============================================================================
 # MAIN PROCESSING
 # ==============================================================================
 log "INFO" "=========================================="
@@ -233,6 +259,7 @@ log "INFO" "  GTF file:     ${gtf_file}"
 log "INFO" "  Feature type: ${feature}"
 log "INFO" "  Attribute:    ${attribute}"
 log "INFO" "  Strandedness: ${strand} (0=unstranded, 1=forward, 2=reverse)"
+log "INFO" "  Paired-end:   ${paired_end}"
 log "INFO" "  Min MAPQ:     ${min_mapq}"
 log "INFO" "  Threads:      ${threads}"
 
@@ -250,9 +277,9 @@ log "INFO" "Running featureCounts..."
 # -g attribute: Attribute for grouping (gene_id)
 # -s strand: Strandedness setting
 # -T threads: Number of threads
-# -p: Count fragments instead of reads (for paired-end)
-# -B: Only count read pairs with both ends mapped
-# -C: Don't count pairs mapping to different chromosomes
+# -p: Count fragments instead of reads (for paired-end ONLY)
+# -B: Only count read pairs with both ends mapped (paired-end ONLY)
+# -C: Don't count pairs mapping to different chromosomes (paired-end ONLY)
 # -Q min_mapq: Minimum mapping quality
 # -M: Count multi-mapping reads
 # --fraction: Assign fractional counts for multi-mappers
@@ -260,27 +287,31 @@ log "INFO" "Running featureCounts..."
 # -O: Allow reads to overlap multiple features
 # --extraAttributes: Include additional attributes from GTF
 
-featureCounts \
-    -a "${gtf_file}" \
-    -o "${output_counts}" \
-    -t "${feature}" \
-    -g "${attribute}" \
-    -s "${strand}" \
-    -T "${threads}" \
-    -p \
-    -B \
-    -C \
-    -Q "${min_mapq}" \
-    `# Multi-mapping handling: fractional assignment` \
-    `# This distributes multi-mapper counts across all valid locations` \
-    `# which is more accurate than ignoring or double-counting them` \
-    -M \
-    --fraction \
-    `# Allow overlapping features (important for overlapping genes)` \
-    -O \
-    `# Include gene_name and gene_biotype for annotation` \
-    --extraAttributes gene_name,gene_biotype \
-    "${bam_files[@]}"
+# Build featureCounts command with conditional paired-end flags
+fc_cmd=(featureCounts
+    -a "${gtf_file}"
+    -o "${output_counts}"
+    -t "${feature}"
+    -g "${attribute}"
+    -s "${strand}"
+    -T "${threads}"
+    -Q "${min_mapq}"
+    -M
+    --fraction
+    -O
+    --extraAttributes gene_name,gene_biotype
+)
+
+# Add paired-end specific flags only if data is paired-end
+if [[ "${paired_end}" == "yes" ]]; then
+    fc_cmd+=(-p -B -C)
+    log "INFO" "Using paired-end mode (-p -B -C flags)"
+else
+    log "INFO" "Using single-end mode"
+fi
+
+# Add BAM files and run
+"${fc_cmd[@]}" "${bam_files[@]}"
 
 log "INFO" "featureCounts completed"
 
