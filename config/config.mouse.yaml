@@ -94,8 +94,9 @@ edger:
   min_count: 10
   fdr_threshold: 0.05
   lfc_threshold: 1.0
-  # Define your contrast here (format: treatment-control)
-  contrast: "LIPA-US"
+  # Define your contrasts here (format: treatment-control)
+  contrasts:
+    - "LIPA-US"
 
 # ==============================================================================
 # GSEAPY - FUNCTIONAL ENRICHMENT

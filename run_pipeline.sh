@@ -175,6 +175,29 @@ get_config() {
 }
 
 #######################################
+# List DE contrasts from the config, one per line.
+#
+# Reads edger.contrasts (a YAML list) and falls back to the older single-value
+# edger.contrast key. The grep-based get_config cannot read lists, so this uses
+# a real YAML parser.
+#
+# Arguments:
+#   $1 - Path to config file
+# Outputs:
+#   Writes one "treatment-control" string per line to stdout
+#######################################
+get_contrasts() {
+    python3 - "$1" <<'PYEOF'
+import sys, yaml
+edger = (yaml.safe_load(open(sys.argv[1])) or {}).get('edger') or {}
+contrasts = edger.get('contrasts') or edger.get('contrast') or []
+if isinstance(contrasts, str):
+    contrasts = [contrasts]
+print('\n'.join(contrasts))
+PYEOF
+}
+
+#######################################
 # Print step header for visual separation in logs
 #
 # Arguments:
@@ -775,16 +798,18 @@ fi
 if [[ "${start_step}" -le 9 ]] && [[ "${end_step}" -ge 9 ]]; then
     print_step_header 9 "${STEP_NAMES[9]}"
 
-    # Get contrast from config (default to a placeholder)
-    contrast=$(get_config "${config_file}" "contrast")
-    contrast="${contrast:-treatment-control}"
+    mapfile -t contrasts < <(get_contrasts "${config_file}")
+    [[ ${#contrasts[@]} -gt 0 ]] || die "No contrasts defined under edger.contrasts in ${config_file}"
 
-    run_cmd Rscript "${SCRIPTS_DIR}/09_differential_expression.R" \
-        --dge "${output_dir}/08_normalization/dge_normalized.rds" \
-        --metadata "${metadata_file}" \
-        --output "${output_dir}/09_de" \
-        --contrast "${contrast}" \
-        2>&1 | tee -a "${output_dir}/logs/09_de.log"
+    for contrast in "${contrasts[@]}"; do
+        log "INFO" "Testing contrast: ${contrast}"
+        run_cmd Rscript "${SCRIPTS_DIR}/09_differential_expression.R" \
+            --dge "${output_dir}/08_normalization/dge_normalized.rds" \
+            --metadata "${metadata_file}" \
+            --output "${output_dir}/09_de" \
+            --contrast "${contrast}" \
+            2>&1 | tee -a "${output_dir}/logs/09_de.log"
+    done
 
     log "INFO" "Step 9 completed"
 fi
