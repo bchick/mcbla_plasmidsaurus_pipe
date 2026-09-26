@@ -245,13 +245,25 @@ if check_command "infer_experiment.py"; then
     # Gene Body Coverage: 5' to 3' coverage bias
     # ------------------------------------------------------------------
     # Important for detecting RNA degradation
+    # geneBody_coverage.py always appends a progress log to ./log.txt (hardcoded
+    # in RSeQC, no option to change it), which would litter the directory the
+    # pipeline was launched from. Run it from this sample's RSeQC directory in
+    # a subshell, with absolute paths, and give the log a descriptive name.
     log "INFO" "Running geneBody_coverage.py (coverage bias)..."
-    geneBody_coverage.py \
-        -r "${bed_file}" \
-        -i "${input_bam}" \
-        -o "${rseqc_dir}/geneBody_coverage" \
-        2>> "${rseqc_dir}/rseqc.log" || \
-        log "WARN" "geneBody_coverage.py failed - continuing"
+    genebody_bed="$(realpath "${bed_file}")"
+    genebody_bam="$(realpath "${input_bam}")"
+    genebody_dir="$(realpath "${rseqc_dir}")"
+    (
+        cd "${genebody_dir}" && \
+        geneBody_coverage.py \
+            -r "${genebody_bed}" \
+            -i "${genebody_bam}" \
+            -o "${genebody_dir}/geneBody_coverage" \
+            2>> "${genebody_dir}/rseqc.log"
+    ) || log "WARN" "geneBody_coverage.py failed - continuing"
+    if [[ -f "${genebody_dir}/log.txt" ]]; then
+        mv "${genebody_dir}/log.txt" "${genebody_dir}/geneBody_coverage.log"
+    fi
 
     log "INFO" "RSeQC analyses completed"
 else
