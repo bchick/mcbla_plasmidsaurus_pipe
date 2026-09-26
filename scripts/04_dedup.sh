@@ -18,6 +18,7 @@
 #   -s, --sample-id     Sample identifier (default: derived from input filename)
 #   -u, --umi-sep       UMI separator in read name (default: _)
 #   -a, --algorithm     Deduplication algorithm (default: directional)
+#   -m, --memory        Java heap for UMICollapse (default: 64g)
 #   -h, --help          Display this help message
 #
 # Dependencies:
@@ -50,6 +51,12 @@ readonly SCRIPT_NAME="$(basename "$0")"
 readonly DEFAULT_UMI_SEP="_"
 readonly DEFAULT_ALGORITHM="directional"
 readonly DEFAULT_EDIT_DISTANCE=1
+# UMICollapse holds all reads at a position in memory. The bioconda wrapper's
+# default heap (-Xmx4g) runs out on a ~13M-read Plasmidsaurus sample; 64g is
+# what the LJQQSK validation used. -Xss1g: UMICollapse recurses deeply on
+# large UMI clusters and its README recommends a large thread stack.
+readonly DEFAULT_JAVA_MEMORY="64g"
+readonly JAVA_STACK="1g"
 
 # ==============================================================================
 # UTILITY FUNCTIONS
@@ -81,6 +88,7 @@ Optional Arguments:
   -u, --umi-sep       UMI separator in read name (default: ${DEFAULT_UMI_SEP})
   -a, --algorithm     Deduplication algorithm: directional, adjacency, cluster
                       (default: ${DEFAULT_ALGORITHM})
+  -m, --memory        Java heap for UMICollapse, e.g. 32g (default: ${DEFAULT_JAVA_MEMORY})
   -h, --help          Display this help message
 
 Algorithms:
@@ -120,6 +128,7 @@ output_dir=""
 sample_id=""
 umi_sep="${DEFAULT_UMI_SEP}"
 algorithm="${DEFAULT_ALGORITHM}"
+java_memory="${DEFAULT_JAVA_MEMORY}"
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -141,6 +150,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -a|--algorithm)
             algorithm="$2"
+            shift 2
+            ;;
+        -m|--memory)
+            java_memory="$2"
             shift 2
             ;;
         -h|--help)
@@ -167,6 +180,8 @@ if [[ -z "${sample_id}" ]]; then
     log "INFO" "Derived sample ID: ${sample_id}"
 fi
 
+[[ "${java_memory}" =~ ^[0-9]+[kKmMgG]$ ]] || die "Invalid --memory: ${java_memory} (e.g. 32g)"
+
 # Validate algorithm choice and translate it to UMICollapse's short name
 # (UMICollapse 1.1.0 accepts only dir/adj/cc and crashes on the long names)
 case "${algorithm}" in
@@ -191,6 +206,7 @@ log "INFO" "=========================================="
 
 log "INFO" "Algorithm: ${algorithm}"
 log "INFO" "UMI separator: '${umi_sep}'"
+log "INFO" "Java heap: ${java_memory}"
 
 output_bam="${output_dir}/${sample_id}.dedup.bam"
 stats_file="${output_dir}/${sample_id}.dedup_stats.txt"
@@ -244,6 +260,10 @@ umicollapse_args=(bam
     --algo "${umicollapse_algo}"
     -k "${DEFAULT_EDIT_DISTANCE}"
 )
+# JVM options, passed first on the command line: the bioconda wrapper forwards
+# -Xm*/-Xs* arguments to java (and would otherwise use -Xmx4g)
+java_opts=("-Xmx${java_memory}" "-Xss${JAVA_STACK}")
+
 if [[ "${paired_count}" -gt 500 ]]; then
     umicollapse_args+=(--paired)
     log "INFO" "Paired-end input detected; deduplicating read pairs"
@@ -252,11 +272,11 @@ fi
 # Check if UMICollapse is available as a JAR or command
 if command -v umicollapse &> /dev/null; then
     # UMICollapse available as command
-    umicollapse \
+    umicollapse "${java_opts[@]}" \
         "${umicollapse_args[@]}" 2>&1 | tee "${stats_file}"
 elif [[ -n "${UMICOLLAPSE_JAR:-}" ]] && [[ -f "${UMICOLLAPSE_JAR}" ]]; then
     # UMICollapse available as JAR file
-    java -jar "${UMICOLLAPSE_JAR}" \
+    java "${java_opts[@]}" -jar "${UMICOLLAPSE_JAR}" \
         "${umicollapse_args[@]}" 2>&1 | tee "${stats_file}"
 else
     # Fallback: try to find UMICollapse wrapper script or JAR in common locations
@@ -273,7 +293,8 @@ else
 
     if [[ -n "${umicollapse_script}" ]]; then
         log "INFO" "Found UMICollapse: ${umicollapse_script}"
-        "${umicollapse_script}" \
+        # Unknown wrapper: pass the JVM options through the environment
+        _JAVA_OPTIONS="${java_opts[*]}" "${umicollapse_script}" \
             "${umicollapse_args[@]}" 2>&1 | tee "${stats_file}"
     else
         die "UMICollapse not found. Install to /data/bchick/tools/umicollapse/ or set UMICOLLAPSE_JAR environment variable."
