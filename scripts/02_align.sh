@@ -23,6 +23,7 @@
 #
 # Dependencies:
 #   - STAR >= 2.7.11 (splice-aware aligner)
+#   - samtools >= 1.22.1 (SAM to BAM conversion)
 #
 # Output:
 #   - {sample}_Aligned.out.bam            Unsorted BAM (sorted in step 3)
@@ -195,6 +196,7 @@ fi
 
 # Check dependencies
 check_command "STAR"
+check_command "samtools"
 
 # Create output directory
 mkdir -p "${output_dir}"
@@ -237,9 +239,11 @@ log "INFO" "Threads: ${threads}"
 # STAR ALIGNMENT
 # ==============================================================================
 # This is the Plasmidsaurus portal's STAR command, read from the @PG header of
-# their BAMs: STAR defaults plus the three options below. Verified on run
-# LJQQSK (2026-09-24): unique and multi-mapped read counts match the portal
-# exactly. Do not add ENCODE-style filters (BySJout, a 0.04 mismatch ratio,
+# their BAMs: STAR defaults plus RemoveNoncanonical, unmapped-read output and
+# the SAM attributes below. The output-order options differ from the portal
+# but only change the order reads are written in, not the alignments. Verified
+# on run LJQQSK (2026-09-24): unique and multi-mapped read counts match the
+# portal exactly. Do not add ENCODE-style filters (BySJout, a 0.04 mismatch ratio,
 # an 8 bp SJ overhang, intron limits); each one changes which reads align and
 # breaks concordance with the portal.
 #
@@ -253,10 +257,17 @@ STAR \
     --readFilesCommand "${read_cmd}" \
     --outFileNamePrefix "${output_prefix}" \
     \
-    `# Unsorted BAM; 03_sort_bam.sh sorts it with samtools, as the portal does.` \
-    `# The sort order of reads at the same position decides which duplicate` \
-    `# UMICollapse keeps, so the sorter matters.` \
-    --outSAMtype BAM Unsorted \
+    `# Output order. With several threads, STAR writes reads in whatever order` \
+    `# its threads finish, which changes from run to run. Coordinate sorting` \
+    `# (step 3) keeps that order for reads at the same position, and UMICollapse` \
+    `# keeps the first of tied duplicates, so a few multi-mapped reads counted` \
+    `# differently on every run. PairedKeepInputOrder writes reads in FASTQ` \
+    `# order instead; alignments are unchanged, and results no longer depend on` \
+    `# the run or the thread count. STAR only supports it for SAM output, so` \
+    `# SAM goes to stdout and samtools converts it to an unsorted BAM.` \
+    --outSAMtype SAM \
+    --outStd SAM \
+    --outSAMorder PairedKeepInputOrder \
     \
     `# Drop alignments that contain non-canonical splice junctions` \
     --outFilterIntronMotifs RemoveNoncanonical \
@@ -267,12 +278,9 @@ STAR \
     `# SAM attributes: NH (number of hits, used by featureCounts -M), HI (hit` \
     `# index), AS (alignment score), nM (mismatches per pair), NM (edit distance)` \
     `# and MD (mismatch string)` \
-    --outSAMattributes NH HI AS nM NM MD
-
-# Check if STAR completed successfully
-if [[ $? -ne 0 ]]; then
-    die "STAR alignment failed for sample: ${sample_id}"
-fi
+    --outSAMattributes NH HI AS nM NM MD \
+    | samtools view -@ 4 -b -o "${output_prefix}Aligned.out.bam" - \
+    || die "STAR alignment failed for sample: ${sample_id} (see ${output_prefix}Log.out)"
 
 log "INFO" "STAR alignment completed successfully"
 
