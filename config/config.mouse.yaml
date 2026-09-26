@@ -13,17 +13,20 @@
 # REFERENCE FILES
 # ==============================================================================
 reference:
-  # Mouse reference genome (GRCm39 primary assembly)
-  genome_fasta: "/data/resource/genomes/GRCm39.star/source/GRCm39.primary_assembly.genome.fa"
+  # Ensembl GRCm39 release 114 primary assembly + 92 ERCC spike-ins. This is
+  # the reference the Plasmidsaurus portal uses (its BAM @SQ lines match this
+  # FASTA exactly). Paths are relative to the repository root.
+  genome_fasta: "data/reference/Mus_musculus.GRCm39.114_ERCC.fa"
 
-  # GENCODE vM33 gene annotation
-  gtf: "/data/resource/genomes/GRCm39.star/source/gencode.vM33.primary_assembly.annotation.gtf"
+  # Ensembl 114 gene annotation + ERCC92
+  gtf: "data/reference/Mus_musculus.GRCm39.114_ERCC.gtf"
 
-  # Pre-built STAR genome index
-  star_index: "/data/resource/genomes/GRCm39.star"
+  # STAR index built from the two files above (STAR defaults, sjdbOverhang 100)
+  star_index: "data/reference/Mus_musculus.GRCm39.114_ERCC.STAR"
 
-  # BED12 gene model for RSeQC
-  gene_model_bed: "/data/resource/genomes/GRCm39.star/source/gencode.vM33.genes.bed12"
+  # BED12 gene model for RSeQC, made from the GTF with UCSC
+  # gtfToGenePred -genePredExt | genePredToBed
+  gene_model_bed: "data/reference/Mus_musculus.GRCm39.114_ERCC.bed12"
 
   # Organism for functional enrichment
   organism: "mouse"
@@ -41,7 +44,9 @@ paths:
 # ==============================================================================
 samples:
   metadata: "config/samples.tsv"
-  paired_end: true
+  # Informational only: the pipeline detects paired-end input from R2 files.
+  # Plasmidsaurus RNA-seq is single-end.
+  paired_end: false
 
 # ==============================================================================
 # FASTP - READ FILTERING
@@ -57,25 +62,29 @@ fastp:
 # ==============================================================================
 star:
   threads: 16
-  outFilterMultimapNmax: 20
-  alignSJoverhangMin: 8
-  alignSJDBoverhangMin: 1
-  outFilterMismatchNoverReadLmax: 0.04
-  alignIntronMin: 20
-  alignIntronMax: 1000000
+  # Fixed in scripts/02_align.sh (not read from this file): STAR defaults plus
+  # --outFilterIntronMotifs RemoveNoncanonical, --outReadsUnmapped Fastx and
+  # --outSAMattributes NH HI AS nM NM MD. This is the Plasmidsaurus portal's
+  # command; adding ENCODE-style filters breaks concordance with the portal.
+  outFilterIntronMotifs: "RemoveNoncanonical"
   outReadsUnmapped: "Fastx"
-  outFilterType: "BySJout"
 
 # ==============================================================================
 # FEATURECOUNTS - QUANTIFICATION
 # ==============================================================================
 featurecounts:
-  feature_type: "exon"
+  # Only "strand" is read from this file; the rest are the defaults in
+  # scripts/07_quantify.sh, listed for reference. They reproduce the portal
+  # count matrix exactly: whole gene bodies, forward strand, multi-mappers
+  # split fractionally.
+  feature_type: "gene"
   attribute_type: "gene_id"
-  strand: 1  # Forward stranded (verified by RSeQC infer_experiment)
+  strand: 1  # Forward stranded (Plasmidsaurus libraries; verified on LJQQSK)
   count_multimapping: true
   fraction: true
-  min_mapping_quality: 10
+  # Must stay 0: STAR gives multi-mappers MAPQ 0-3, so any higher value drops
+  # them all
+  min_mapping_quality: 0
   threads: 8
 
 # ==============================================================================

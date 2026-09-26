@@ -53,8 +53,9 @@ samples:
   # Use {sample} as placeholder for sample name
   fastq_pattern: "{sample}_R1.fastq.gz"
 
-  # Are samples paired-end?
-  paired_end: true
+  # Are samples paired-end? Informational only: the pipeline detects
+  # paired-end input from R2 files. Plasmidsaurus RNA-seq is single-end.
+  paired_end: false
 
 # ==============================================================================
 # FASTP - READ FILTERING (Step 2)
@@ -69,9 +70,10 @@ fastp:
   # Enable poly-X tail trimming
   trim_poly_x: true
 
-  # Number of bases for 3' quality trimming
+  # 3' quality trimming (sliding window). Fixed in 01_filter_reads.sh at
+  # window 4 / mean Q20 to match the Plasmidsaurus portal; listed for reference.
   cut_tail_window_size: 4
-  cut_tail_mean_quality: 15
+  cut_tail_mean_quality: 20
 
   # Number of threads
   threads: 8
@@ -83,31 +85,17 @@ star:
   # Number of threads for alignment
   threads: 16
 
-  # Maximum number of multiple alignments allowed
-  outFilterMultimapNmax: 20
+  # Fixed in scripts/02_align.sh (not read from this file): STAR defaults plus
+  # the two options below and --outSAMattributes NH HI AS nM NM MD. This is
+  # the Plasmidsaurus portal's command (from their BAM @PG headers). Do not
+  # add ENCODE-style filters (BySJout, mismatch ratio 0.04, SJ overhang 8,
+  # intron limits); each changes which reads align.
 
-  # Minimum overhang for unannotated splice junctions
-  alignSJoverhangMin: 8
-
-  # Minimum overhang for annotated splice junctions
-  alignSJDBoverhangMin: 1
-
-  # Maximum number of mismatches per pair
-  outFilterMismatchNmax: 999
-
-  # Maximum ratio of mismatches to mapped length
-  outFilterMismatchNoverReadLmax: 0.04
-
-  # Alignment type for chimeric reads
-  alignIntronMin: 20
-  alignIntronMax: 1000000
-  alignMatesGapMax: 1000000
+  # Drop alignments that contain non-canonical splice junctions
+  outFilterIntronMotifs: "RemoveNoncanonical"
 
   # Output unmapped reads
   outReadsUnmapped: "Fastx"
-
-  # Remove non-canonical splice junctions
-  outFilterType: "BySJout"
 
 # ==============================================================================
 # SAMTOOLS - BAM PROCESSING (Step 4)
@@ -127,8 +115,8 @@ umicollapse:
   # Options: "read_name", "read_sequence"
   umi_location: "read_name"
 
-  # UMI separator in read name
-  umi_separator: ":"
+  # UMI separator in read name. Plasmidsaurus read names end in "_<UMI>".
+  umi_separator: "_"
 
   # Algorithm for UMI grouping
   # Options: "directional", "adjacency", "cluster"
@@ -146,21 +134,25 @@ qc:
 
   # Strandedness for RSeQC
   # Options: "none", "forward", "reverse"
-  strandedness: "reverse"
+  strandedness: "forward"
 
 # ==============================================================================
 # FEATURECOUNTS - QUANTIFICATION (Step 8)
 # ==============================================================================
 featurecounts:
-  # Feature type to count
-  feature_type: "exon"
+  # Only "strand" is read from this section; the rest are the defaults in
+  # scripts/07_quantify.sh, listed for reference.
+
+  # Feature type to count ("gene" = whole gene body, as the portal counts)
+  feature_type: "gene"
 
   # Attribute type for grouping
   attribute_type: "gene_id"
 
   # Strandedness
   # 0 = unstranded, 1 = forward, 2 = reverse
-  strand: 2
+  # Plasmidsaurus libraries are forward stranded
+  strand: 1
 
   # Count multi-mapping reads
   count_multimapping: true
@@ -168,11 +160,13 @@ featurecounts:
   # Fraction for multi-mapping reads
   fraction: true
 
-  # Count reads overlapping multiple features
-  count_overlapping: true
+  # Count reads overlapping multiple genes (featureCounts -O). Off: such reads
+  # are left unassigned as ambiguous, as the portal does.
+  count_overlapping: false
 
-  # Minimum mapping quality
-  min_mapping_quality: 10
+  # Minimum mapping quality. Must stay 0: STAR gives multi-mappers MAPQ 0-3,
+  # so any higher value drops them all and makes fractional counting a no-op.
+  min_mapping_quality: 0
 
   # Number of threads
   threads: 8

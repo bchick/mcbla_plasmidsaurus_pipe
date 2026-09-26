@@ -288,12 +288,16 @@ fastp_cmd=(
     # Poly-X trimming: remove poly-X tails (common in RNA-seq)
     # This addresses issues with poly-A tails and other homopolymer artifacts
     --trim_poly_x
-    # 3' quality trimming: sliding window approach
-    # Window size of 4 bases, trim if mean quality drops below threshold
+    # 3' quality trimming: slide a 4-base window in from the 3' end and trim
+    # while its mean quality is below Q20 (fastp's defaults). This is
+    # deliberately NOT tied to --qualified_quality_phred: on Plasmidsaurus run
+    # LJQQSK, window 4 / mean Q20 reproduced the portal's trimmed reads exactly
+    # (same read count, identical length for every read), whereas mean Q15
+    # left ~10% of reads longer and cost ~1.5-2% of mapped reads.
     --cut_tail
     --cut_tail_window_size 4
-    --cut_tail_mean_quality "${min_quality}"
-    # Disable adapter auto-detection logging noise
+    --cut_tail_mean_quality 20
+    # Skip duplication-rate estimation (reporting only; UMI dedup happens later)
     --dont_eval_duplication
 )
 

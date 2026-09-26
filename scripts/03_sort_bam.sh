@@ -30,7 +30,7 @@
 #   - {sample}.sorted.bam.bai  BAM index file
 #
 # Example:
-#   ./03_sort_bam.sh -i sample_Aligned.sortedByCoord.out.bam \
+#   ./03_sort_bam.sh -i sample_Aligned.out.bam \
 #       -o results/03_sorted/ -t 8 -m 4G
 #
 # Author: Plasmidsaurus RNA-seq Pipeline

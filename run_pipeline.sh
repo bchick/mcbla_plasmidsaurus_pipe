@@ -482,6 +482,14 @@ organism=$(get_config "${config_file}" "organism")
 # Use defaults if not specified
 organism="${organism:-human}"
 
+# Resolve relative reference paths against the repository root, so the
+# shipped configs (which point into data/reference/) work from any directory
+for ref_var in genome_fasta gtf_file star_index gene_model_bed; do
+    if [[ -n "${!ref_var}" ]] && [[ "${!ref_var}" != /* ]]; then
+        printf -v "${ref_var}" '%s/%s' "${SCRIPT_DIR}" "${!ref_var}"
+    fi
+done
+
 log "INFO" "Reference files:"
 log "INFO" "  Genome FASTA:  ${genome_fasta:-Not specified}"
 log "INFO" "  GTF file:      ${gtf_file:-Not specified}"
@@ -632,7 +640,7 @@ if [[ "${start_step}" -le 3 ]] && [[ "${end_step}" -ge 3 ]]; then
     for sample_id in "${sample_ids[@]}"; do
         log "INFO" "Processing sample: ${sample_id}"
 
-        input_bam="${output_dir}/02_aligned/${sample_id}_Aligned.sortedByCoord.out.bam"
+        input_bam="${output_dir}/02_aligned/${sample_id}_Aligned.out.bam"
 
         run_cmd "${SCRIPTS_DIR}/03_sort_bam.sh" \
             -i "${input_bam}" \
@@ -723,9 +731,10 @@ if [[ "${start_step}" -le 7 ]] && [[ "${end_step}" -ge 7 ]]; then
     [[ -z "${gtf_file}" ]] && die "GTF file not specified in config"
     [[ -f "${gtf_file}" ]] || die "GTF file not found: ${gtf_file}"
 
-    # Get strandedness from config (default: 2 = reverse stranded)
+    # Get strandedness from config (default: 1 = forward stranded, which is
+    # what Plasmidsaurus libraries are)
     fc_strand=$(get_config "${config_file}" "strand")
-    fc_strand="${fc_strand:-2}"
+    fc_strand="${fc_strand:-1}"
 
     # Use original input directory for BAM input, otherwise use pipeline dedup output
     if [[ "${input_type}" == "bam" ]]; then

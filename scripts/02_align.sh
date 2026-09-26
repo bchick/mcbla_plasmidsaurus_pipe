@@ -25,7 +25,7 @@
 #   - STAR >= 2.7.11 (splice-aware aligner)
 #
 # Output:
-#   - {sample}_Aligned.sortedByCoord.out.bam  Coordinate-sorted BAM file
+#   - {sample}_Aligned.out.bam            Unsorted BAM (sorted in step 3)
 #   - {sample}_Log.final.out                  Alignment summary statistics
 #   - {sample}_Log.out                        Detailed run log
 #   - {sample}_SJ.out.tab                     Detected splice junctions
@@ -54,16 +54,6 @@ readonly SCRIPT_DIR="$(cd "$(dirname "$0")" && pwd)"
 
 # Default parameter values
 readonly DEFAULT_THREADS=16
-
-# STAR alignment parameters (optimized for standard RNA-seq)
-# These values are based on ENCODE RNA-seq guidelines and Plasmidsaurus recommendations
-readonly DEFAULT_MULTIMAP_MAX=20           # Max multi-mapping locations
-readonly DEFAULT_MISMATCH_MAX=999          # Max mismatches (effectively unlimited)
-readonly DEFAULT_MISMATCH_RATIO=0.04       # Max mismatch ratio to read length
-readonly DEFAULT_SJ_OVERHANG_UNANNOTATED=8 # Min overhang for unannotated junctions
-readonly DEFAULT_SJ_OVERHANG_ANNOTATED=1   # Min overhang for annotated junctions
-readonly DEFAULT_INTRON_MIN=20             # Minimum intron size
-readonly DEFAULT_INTRON_MAX=1000000        # Maximum intron size (1 Mb)
 
 # ==============================================================================
 # UTILITY FUNCTIONS
@@ -246,8 +236,15 @@ log "INFO" "Threads: ${threads}"
 # ==============================================================================
 # STAR ALIGNMENT
 # ==============================================================================
-# The following parameters are optimized for RNA-seq analysis and follow
-# Plasmidsaurus and ENCODE recommendations
+# This is the Plasmidsaurus portal's STAR command, read from the @PG header of
+# their BAMs: STAR defaults plus the three options below. Verified on run
+# LJQQSK (2026-09-24): unique and multi-mapped read counts match the portal
+# exactly. Do not add ENCODE-style filters (BySJout, a 0.04 mismatch ratio,
+# an 8 bp SJ overhang, intron limits); each one changes which reads align and
+# breaks concordance with the portal.
+#
+# Defaults worth knowing: at most 10 loci per multi-mapper
+# (--outFilterMultimapNmax 10), and mismatches capped at 10 per read.
 
 STAR \
     --runThreadN "${threads}" \
@@ -256,43 +253,21 @@ STAR \
     --readFilesCommand "${read_cmd}" \
     --outFileNamePrefix "${output_prefix}" \
     \
-    `# Output format: coordinate-sorted BAM for downstream tools` \
-    --outSAMtype BAM SortedByCoordinate \
+    `# Unsorted BAM; 03_sort_bam.sh sorts it with samtools, as the portal does.` \
+    `# The sort order of reads at the same position decides which duplicate` \
+    `# UMICollapse keeps, so the sorter matters.` \
+    --outSAMtype BAM Unsorted \
     \
-    `# Filter by splice junctions to remove false positive alignments` \
-    `# This is crucial for removing alignments that span non-canonical junctions` \
-    --outFilterType BySJout \
+    `# Drop alignments that contain non-canonical splice junctions` \
+    --outFilterIntronMotifs RemoveNoncanonical \
     \
-    `# Multi-mapping settings: allow up to 20 locations for multi-mappers` \
-    `# Multi-mappers are handled downstream by featureCounts with fractional assignment` \
-    --outFilterMultimapNmax "${DEFAULT_MULTIMAP_MAX}" \
-    \
-    `# Mismatch filtering: allow mismatches up to 4% of read length` \
-    `# This is permissive enough for SNPs but filters poor alignments` \
-    --outFilterMismatchNmax "${DEFAULT_MISMATCH_MAX}" \
-    --outFilterMismatchNoverReadLmax "${DEFAULT_MISMATCH_RATIO}" \
-    \
-    `# Splice junction overhang requirements` \
-    `# Unannotated junctions need more support (8bp) to be confident` \
-    `# Annotated junctions need minimal support (1bp) as they are known` \
-    --alignSJoverhangMin "${DEFAULT_SJ_OVERHANG_UNANNOTATED}" \
-    --alignSJDBoverhangMin "${DEFAULT_SJ_OVERHANG_ANNOTATED}" \
-    \
-    `# Intron size limits to filter implausible alignments` \
-    --alignIntronMin "${DEFAULT_INTRON_MIN}" \
-    --alignIntronMax "${DEFAULT_INTRON_MAX}" \
-    --alignMatesGapMax "${DEFAULT_INTRON_MAX}" \
-    \
-    `# Output unmapped reads for troubleshooting and QC` \
-    `# Useful for detecting contamination or novel sequences` \
+    `# Write unmapped reads to FASTQ for QC and contamination checks` \
     --outReadsUnmapped Fastx \
     \
-    `# SAM attributes to include in output` \
-    `# NH: number of hits, HI: hit index, AS: alignment score, nM: mismatches` \
-    --outSAMattributes NH HI AS nM MD \
-    \
-    `# Limit BAM sorting memory to prevent memory issues` \
-    --limitBAMsortRAM 30000000000
+    `# SAM attributes: NH (number of hits, used by featureCounts -M), HI (hit` \
+    `# index), AS (alignment score), nM (mismatches per pair), NM (edit distance)` \
+    `# and MD (mismatch string)` \
+    --outSAMattributes NH HI AS nM NM MD
 
 # Check if STAR completed successfully
 if [[ $? -ne 0 ]]; then
@@ -306,7 +281,7 @@ log "INFO" "STAR alignment completed successfully"
 # ==============================================================================
 log "INFO" "Verifying outputs..."
 
-bam_file="${output_prefix}Aligned.sortedByCoord.out.bam"
+bam_file="${output_prefix}Aligned.out.bam"
 log_file="${output_prefix}Log.final.out"
 
 [[ -s "${bam_file}" ]] || die "Output BAM file is empty or missing: ${bam_file}"

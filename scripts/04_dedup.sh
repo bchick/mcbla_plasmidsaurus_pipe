@@ -16,7 +16,7 @@
 #   -i, --input         Path to coordinate-sorted BAM file (required)
 #   -o, --output-dir    Output directory for deduplicated BAM (required)
 #   -s, --sample-id     Sample identifier (default: derived from input filename)
-#   -u, --umi-sep       UMI separator in read name (default: :)
+#   -u, --umi-sep       UMI separator in read name (default: _)
 #   -a, --algorithm     Deduplication algorithm (default: directional)
 #   -h, --help          Display this help message
 #
@@ -46,7 +46,8 @@ set -euo pipefail
 # CONSTANTS
 # ==============================================================================
 readonly SCRIPT_NAME="$(basename "$0")"
-readonly DEFAULT_UMI_SEP=":"
+# Plasmidsaurus read names end in "_<UMI>" (e.g. ..._CACTTGCGCGAGCA)
+readonly DEFAULT_UMI_SEP="_"
 readonly DEFAULT_ALGORITHM="directional"
 readonly DEFAULT_EDIT_DISTANCE=1
 
@@ -166,10 +167,12 @@ if [[ -z "${sample_id}" ]]; then
     log "INFO" "Derived sample ID: ${sample_id}"
 fi
 
-# Validate algorithm choice
+# Validate algorithm choice and translate it to UMICollapse's short name
+# (UMICollapse 1.1.0 accepts only dir/adj/cc and crashes on the long names)
 case "${algorithm}" in
-    directional|adjacency|cluster)
-        ;;
+    directional) umicollapse_algo="dir" ;;
+    adjacency)   umicollapse_algo="adj" ;;
+    cluster)     umicollapse_algo="cc" ;;
     *)
         die "Invalid algorithm: ${algorithm}. Choose from: directional, adjacency, cluster"
         ;;
@@ -206,31 +209,55 @@ log "INFO" "Running UMICollapse..."
 # -i: Input BAM file
 # -o: Output BAM file
 # --umi-sep: Character separating UMI from read name
-# --algo: Algorithm for UMI grouping
-# --edit-distance: Maximum edit distance for UMI comparison
+# --algo: Algorithm for UMI grouping (dir = directional, UMICollapse's default)
+# -k: Maximum edit distance for UMI comparison (1, UMICollapse's default)
+#
+# With the defaults (directional, -k 1, separator "_") this is the portal's
+# command, "umicollapse bam --umi-sep _", verified on run LJQQSK.
 #
 # The directional algorithm is recommended for most RNA-seq applications as it
 # accounts for the expected error profile in UMI sequences and read direction
 
+# ------------------------------------------------------------------------------
+# UMI sanity check
+# ------------------------------------------------------------------------------
+# UMICollapse takes whatever follows the last separator in the read name as the
+# UMI. If the UMI was never moved into the header, that field is the Illumina
+# y-coordinate and deduplication silently runs on the wrong key. Fail loudly.
+first_umis=$(set +o pipefail; samtools view "${input_bam}" | head -1000 | \
+    awk -v sep="${umi_sep}" '{n = split($1, f, sep); print f[n]}')
+non_umi=$(grep -cvE '^[ACGTN]+$' <<< "${first_umis}" || true)
+if [[ -z "${first_umis}" ]] || [[ "${non_umi}" -gt 0 ]]; then
+    die "Read names do not end in a UMI after '${umi_sep}' (e.g. '$(head -1 <<< "${first_umis}")'). The UMI must be moved into the read name before alignment."
+fi
+log "INFO" "UMI check passed (e.g. $(head -1 <<< "${first_umis}"))"
+
+# Paired-end input must be deduplicated as pairs; otherwise each mate is
+# collapsed independently and pairs are broken before counting.
+paired_count=$(set +o pipefail; samtools view "${input_bam}" | head -1000 | \
+    awk '$2 % 2 == 1 {count++} END {print count+0}')
+
+umicollapse_args=(bam
+    -i "${input_bam}"
+    -o "${output_bam}"
+    --umi-sep "${umi_sep}"
+    --algo "${umicollapse_algo}"
+    -k "${DEFAULT_EDIT_DISTANCE}"
+)
+if [[ "${paired_count}" -gt 500 ]]; then
+    umicollapse_args+=(--paired)
+    log "INFO" "Paired-end input detected; deduplicating read pairs"
+fi
+
 # Check if UMICollapse is available as a JAR or command
 if command -v umicollapse &> /dev/null; then
     # UMICollapse available as command
-    umicollapse bam \
-        -i "${input_bam}" \
-        -o "${output_bam}" \
-        --umi-sep "${umi_sep}" \
-        --algo "${algorithm}" \
-        --edit-distance "${DEFAULT_EDIT_DISTANCE}" \
-        2>&1 | tee "${stats_file}"
+    umicollapse \
+        "${umicollapse_args[@]}" 2>&1 | tee "${stats_file}"
 elif [[ -n "${UMICOLLAPSE_JAR:-}" ]] && [[ -f "${UMICOLLAPSE_JAR}" ]]; then
     # UMICollapse available as JAR file
-    java -jar "${UMICOLLAPSE_JAR}" bam \
-        -i "${input_bam}" \
-        -o "${output_bam}" \
-        --umi-sep "${umi_sep}" \
-        --algo "${algorithm}" \
-        --edit-distance "${DEFAULT_EDIT_DISTANCE}" \
-        2>&1 | tee "${stats_file}"
+    java -jar "${UMICOLLAPSE_JAR}" \
+        "${umicollapse_args[@]}" 2>&1 | tee "${stats_file}"
 else
     # Fallback: try to find UMICollapse wrapper script or JAR in common locations
     umicollapse_script=""
@@ -246,13 +273,8 @@ else
 
     if [[ -n "${umicollapse_script}" ]]; then
         log "INFO" "Found UMICollapse: ${umicollapse_script}"
-        "${umicollapse_script}" bam \
-            -i "${input_bam}" \
-            -o "${output_bam}" \
-            --umi-sep "${umi_sep}" \
-            --algo "${algorithm}" \
-            --edit-distance "${DEFAULT_EDIT_DISTANCE}" \
-            2>&1 | tee "${stats_file}"
+        "${umicollapse_script}" \
+            "${umicollapse_args[@]}" 2>&1 | tee "${stats_file}"
     else
         die "UMICollapse not found. Install to /data/bchick/tools/umicollapse/ or set UMICOLLAPSE_JAR environment variable."
     fi

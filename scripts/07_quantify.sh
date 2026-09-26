@@ -4,9 +4,10 @@
 #
 # Description:
 #   This script performs gene-level expression quantification using featureCounts
-#   from the Subread package. It counts reads mapping to genomic features (exons)
-#   and aggregates them by gene ID. The script supports strand-specific counting
-#   and fractional assignment of multi-mapping reads, as recommended by Plasmidsaurus.
+#   from the Subread package. By default it counts reads over whole gene bodies
+#   (GTF "gene" features), grouped by gene ID, which is what the Plasmidsaurus
+#   portal does. Multi-mapping reads are counted fractionally (1/NH each),
+#   also as the portal does.
 #
 # Usage:
 #   ./07_quantify.sh -i <input_bams> -g <gtf_file> -o <output_dir> [OPTIONS]
@@ -15,9 +16,10 @@
 #   -i, --input         Input BAM file(s), comma-separated or directory (required)
 #   -g, --gtf           Path to GTF annotation file (required)
 #   -o, --output-dir    Output directory for count matrices (required)
-#   -s, --strand        Strandedness: 0=unstranded, 1=forward, 2=reverse (default: 2)
+#   -s, --strand        Strandedness: 0=unstranded, 1=forward, 2=reverse (default: 1)
 #   -t, --threads       Number of threads (default: 8)
-#   -f, --feature       Feature type to count (default: exon)
+#   -f, --feature       Feature type to count (default: gene)
+#   -q, --min-mapq      Minimum mapping quality (default: 0)
 #   -a, --attribute     Attribute for grouping (default: gene_id)
 #   -h, --help          Display this help message
 #
@@ -30,7 +32,7 @@
 #   - gene_counts_annotated.txt Count matrix with gene annotations
 #
 # Example:
-#   ./07_quantify.sh -i results/04_dedup/ -g annotation.gtf -o results/07_counts/ -s 2
+#   ./07_quantify.sh -i results/04_dedup/ -g annotation.gtf -o results/07_counts/ -s 1
 #
 # Author: Plasmidsaurus RNA-seq Pipeline
 # Date: 2024
@@ -47,10 +49,18 @@ set -euo pipefail
 # ==============================================================================
 readonly SCRIPT_NAME="$(basename "$0")"
 readonly DEFAULT_THREADS=8
-readonly DEFAULT_STRAND=2          # Reverse stranded (common for Illumina)
-readonly DEFAULT_FEATURE="exon"
+# Plasmidsaurus reads are sense-stranded (forward, -s 1); verified on run
+# LJQQSK, where -s 1 reproduces the portal count matrix exactly.
+readonly DEFAULT_STRAND=1
+# Count over whole gene bodies (introns included), as the portal does. With
+# "exon", intronic reads from pre-mRNA are dropped and counts fall short of
+# the portal's.
+readonly DEFAULT_FEATURE="gene"
 readonly DEFAULT_ATTRIBUTE="gene_id"
-readonly DEFAULT_MIN_MAPQ=10       # Minimum mapping quality
+# STAR assigns MAPQ 255 to unique reads and 0/1/3 to multi-mappers, so any
+# threshold above 0 silently discards every multi-mapper and makes -M --fraction
+# a no-op. Plasmidsaurus counts multi-mappers fractionally, so keep them all.
+readonly DEFAULT_MIN_MAPQ=0        # Minimum mapping quality
 
 # ==============================================================================
 # UTILITY FUNCTIONS
@@ -90,12 +100,13 @@ Optional Arguments:
 Strandedness Options:
   0 - Unstranded (count reads regardless of strand)
   1 - Forward/sense stranded (read strand matches gene strand)
+      Plasmidsaurus RNA-seq libraries (default)
   2 - Reverse/antisense stranded (read strand opposite to gene strand)
       Most common for Illumina dUTP-based stranded library prep
 
 Examples:
-  # Count reads from all BAMs in a directory (reverse stranded)
-  ${SCRIPT_NAME} -i results/04_dedup/ -g annotation.gtf -o results/07_counts/ -s 2
+  # Count reads from all BAMs in a directory (forward stranded)
+  ${SCRIPT_NAME} -i results/04_dedup/ -g annotation.gtf -o results/07_counts/ -s 1
 
   # Count from specific BAM files
   ${SCRIPT_NAME} -i "sample1.bam,sample2.bam" -g annotation.gtf -o results/07_counts/
@@ -251,7 +262,8 @@ log "INFO" "Starting gene quantification"
 log "INFO" "=========================================="
 
 # Log tool version
-fc_version="$(featureCounts -v 2>&1 | head -1)"
+# featureCounts -v prints a leading blank line, so match the version line itself
+fc_version="$(featureCounts -v 2>&1 | grep -m1 'v[0-9]')"
 log "INFO" "Using ${fc_version}"
 
 # Log parameters
@@ -274,7 +286,7 @@ log "INFO" "Running featureCounts..."
 # featureCounts parameters explained:
 # -a GTF: Annotation file
 # -o output: Output file path
-# -t feature: Feature type (exon for gene-level counting)
+# -t feature: Feature type (gene = whole gene body, the portal method)
 # -g attribute: Attribute for grouping (gene_id)
 # -s strand: Strandedness setting
 # -T threads: Number of threads
@@ -285,8 +297,19 @@ log "INFO" "Running featureCounts..."
 # -M: Count multi-mapping reads
 # --fraction: Assign fractional counts for multi-mappers
 #             (e.g., if read maps to 4 genes, each gets 0.25)
-# -O: Allow reads to overlap multiple features
+# (no -O): Reads overlapping more than one gene are left unassigned as
+#          ambiguous (featureCounts default) rather than split between genes
 # --extraAttributes: Include additional attributes from GTF
+
+# Ensembl GTFs call the biotype attribute "gene_biotype"; GENCODE calls it
+# "gene_type". Detect which one this GTF uses so the column is populated.
+# Use a subshell with pipefail off: grep -m1 closes the pipe early (SIGPIPE).
+if (set +o pipefail; zcat -f "${gtf_file}" | grep -m1 -v '^#' | grep -q 'gene_type "'); then
+    biotype_attr="gene_type"
+else
+    biotype_attr="gene_biotype"
+fi
+log "INFO" "  Biotype attr: ${biotype_attr}"
 
 # Build featureCounts command with conditional paired-end flags
 fc_cmd=(featureCounts
@@ -299,14 +322,19 @@ fc_cmd=(featureCounts
     -Q "${min_mapq}"
     -M
     --fraction
-    -O
-    --extraAttributes gene_name,gene_biotype
+    --extraAttributes "gene_name,${biotype_attr}"
 )
 
 # Add paired-end specific flags only if data is paired-end
 if [[ "${paired_end}" == "yes" ]]; then
     fc_cmd+=(-p -B -C)
-    log "INFO" "Using paired-end mode (-p -B -C flags)"
+    # Since subread 2.0.2, -p alone counts each mate separately; fragments are
+    # only counted when --countReadPairs is also given. Older versions reject it.
+    fc_ver_num="$(sed -E 's/.*v([0-9.]+).*/\1/' <<< "${fc_version}")"
+    if [[ "$(printf '%s\n' 2.0.2 "${fc_ver_num}" | sort -V | head -1)" == "2.0.2" ]]; then
+        fc_cmd+=(--countReadPairs)
+    fi
+    log "INFO" "Using paired-end mode (counting fragments)"
 else
     log "INFO" "Using single-end mode"
 fi
@@ -320,6 +348,11 @@ log "INFO" "featureCounts completed"
 # POST-PROCESSING
 # ==============================================================================
 log "INFO" "Post-processing count matrix..."
+
+# Downstream scripts expect the biotype column to be named gene_biotype
+if [[ "${biotype_attr}" != "gene_biotype" ]]; then
+    sed -i "2s/\t${biotype_attr}\t/\tgene_biotype\t/" "${output_counts}"
+fi
 
 # Create a cleaner version of the counts file
 # Remove the first comment line and simplify column headers
