@@ -59,6 +59,7 @@ from datetime import datetime
 from pathlib import Path
 from typing import List, Optional
 
+import numpy as np
 import pandas as pd
 import gseapy as gp
 import matplotlib.pyplot as plt
@@ -412,6 +413,29 @@ def generate_summary_report(
     logger.info(f"Summary report saved: {report_path}")
 
 
+def tag_percent(tags: pd.Series) -> pd.Series:
+    """
+    Convert GSEApy's "Tag %" column to percentages.
+
+    Tag % is the fraction of a gene set's genes in the leading edge. GSEApy
+    0.x reports it as "74.58%"; GSEApy 1.x reports it as a count such as
+    "132/177".
+
+    Args:
+        tags: "Tag %" column from GSEApy results
+
+    Returns:
+        Series of percentages (0-100) as floats
+    """
+    def parse(value):
+        value = str(value)
+        if '/' in value:
+            hits, size = value.split('/')
+            return float(hits) / float(size) * 100
+        return float(value.rstrip('%'))
+    return tags.map(parse)
+
+
 def create_dot_plot(
     results_df: pd.DataFrame,
     gene_set_name: str,
@@ -451,7 +475,7 @@ def create_dot_plot(
         plot_data['NES'],
         range(len(plot_data)),
         c=-np.log10(plot_data['FDR q-val'].clip(1e-10, 1)),
-        s=plot_data['Tag %'].str.rstrip('%').astype(float) * 3 if 'Tag %' in plot_data.columns else 100,
+        s=tag_percent(plot_data['Tag %']) * 3 if 'Tag %' in plot_data.columns else 100,
         cmap='RdYlBu_r',
         alpha=0.7
     )
@@ -545,7 +569,6 @@ def main():
 
             # Create dot plot
             try:
-                import numpy as np
                 create_dot_plot(
                     results,
                     gene_set,
@@ -557,6 +580,14 @@ def main():
 
     # Generate summary report
     generate_summary_report(all_results, args.output, args.fdr)
+
+    # A gene set that errored (e.g. a missing dependency or a failed download)
+    # must fail the step. Otherwise run_pipeline.sh reports step 10 as completed
+    # and the only trace is "No results" in the summary.
+    failed = [gs for gs, res in all_results.items() if res is None]
+    if failed:
+        logger.error(f"GSEA produced no results for: {', '.join(failed)}")
+        sys.exit(1)
 
     logger.info("\n" + "=" * 50)
     logger.info("Functional enrichment analysis completed")
