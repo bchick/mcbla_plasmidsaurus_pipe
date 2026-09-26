@@ -15,6 +15,8 @@
 #   -i, --input         Path to deduplicated BAM file (required)
 #   -b, --bed           Path to gene model BED file for RSeQC (required)
 #   -g, --gtf           Path to GTF annotation file for Qualimap (optional)
+#   -H, --genebody-bed  BED12 of housekeeping genes for gene body coverage
+#                       (optional; default: the -b BED, which is very slow)
 #   -o, --output-dir    Output directory for QC reports (required)
 #   -s, --sample-id     Sample identifier (default: derived from input filename)
 #   -t, --threads       Number of threads (default: 8)
@@ -76,6 +78,8 @@ Required Arguments:
 
 Optional Arguments:
   -g, --gtf           Path to GTF annotation file for Qualimap
+  -H, --genebody-bed  BED12 of housekeeping genes for geneBody_coverage.py
+                      (default: the -b BED; hours per sample on a full annotation)
   -s, --sample-id     Sample identifier (default: derived from input filename)
   -t, --threads       Number of threads (default: ${DEFAULT_THREADS})
   -h, --help          Display this help message
@@ -113,6 +117,7 @@ extract_sample_id() {
 input_bam=""
 bed_file=""
 gtf_file=""
+genebody_bed=""
 output_dir=""
 sample_id=""
 threads="${DEFAULT_THREADS}"
@@ -129,6 +134,10 @@ while [[ $# -gt 0 ]]; do
             ;;
         -g|--gtf)
             gtf_file="$2"
+            shift 2
+            ;;
+        -H|--genebody-bed)
+            genebody_bed="$2"
             shift 2
             ;;
         -o|--output-dir)
@@ -165,6 +174,15 @@ log "INFO" "Validating inputs..."
 
 if [[ -n "${gtf_file}" ]] && [[ ! -f "${gtf_file}" ]]; then
     die "GTF file not found: ${gtf_file}"
+fi
+
+# geneBody_coverage.py runtime scales with the number of transcripts, so RSeQC
+# recommends a housekeeping-gene BED (see scripts/make_housekeeping_bed.py)
+if [[ -n "${genebody_bed}" ]]; then
+    [[ -f "${genebody_bed}" ]] || die "Gene body BED file not found: ${genebody_bed}"
+else
+    genebody_bed="${bed_file}"
+    log "WARN" "No housekeeping BED (-H); gene body coverage will use the full gene model and may take hours"
 fi
 
 if [[ -z "${sample_id}" ]]; then
@@ -244,13 +262,15 @@ if check_command "infer_experiment.py"; then
     # ------------------------------------------------------------------
     # Gene Body Coverage: 5' to 3' coverage bias
     # ------------------------------------------------------------------
-    # Important for detecting RNA degradation
+    # Important for detecting RNA degradation. Run on housekeeping genes only
+    # (-H): they are expressed everywhere, so their coverage profile reflects
+    # RNA integrity, and the step takes minutes instead of hours.
     # geneBody_coverage.py always appends a progress log to ./log.txt (hardcoded
     # in RSeQC, no option to change it), which would litter the directory the
     # pipeline was launched from. Run it from this sample's RSeQC directory in
     # a subshell, with absolute paths, and give the log a descriptive name.
     log "INFO" "Running geneBody_coverage.py (coverage bias)..."
-    genebody_bed="$(realpath "${bed_file}")"
+    genebody_bed="$(realpath "${genebody_bed}")"
     genebody_bam="$(realpath "${input_bam}")"
     genebody_dir="$(realpath "${rseqc_dir}")"
     (

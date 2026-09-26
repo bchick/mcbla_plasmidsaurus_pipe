@@ -132,6 +132,11 @@ qc:
   # BED file for gene model (for RSeQC)
   gene_model_bed: "/path/to/gene_model.bed"
 
+  # Housekeeping-gene BED12 for gene body coverage (build it with
+  # scripts/make_housekeeping_bed.py). If empty, the full gene model is used,
+  # which takes hours per sample.
+  genebody_bed: "/path/to/housekeeping.bed12"
+
   # Strandedness for RSeQC
   # Options: "none", "forward", "reverse"
   strandedness: "forward"

@@ -28,6 +28,12 @@ reference:
   # gtfToGenePred -genePredExt | genePredToBed
   gene_model_bed: "data/reference/Mus_musculus.GRCm39.114_ERCC.bed12"
 
+  # Housekeeping genes (one canonical transcript each) for RSeQC gene body
+  # coverage, which takes hours per sample on the full gene model. Made by
+  # scripts/make_housekeeping_bed.py from RSeQC's mm10.HouseKeepingGenes.bed
+  # and Ensembl 114's RefSeq cross-references.
+  genebody_bed: "data/reference/Mus_musculus.GRCm39.114.housekeeping.bed12"
+
   # Organism for functional enrichment
   organism: "mouse"
 

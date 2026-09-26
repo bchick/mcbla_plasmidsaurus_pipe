@@ -500,6 +500,7 @@ genome_fasta=$(get_config "${config_file}" "genome_fasta")
 gtf_file=$(get_config "${config_file}" "gtf")
 star_index=$(get_config "${config_file}" "star_index")
 gene_model_bed=$(get_config "${config_file}" "gene_model_bed")
+genebody_bed=$(get_config "${config_file}" "genebody_bed")
 organism=$(get_config "${config_file}" "organism")
 
 # Use defaults if not specified
@@ -507,7 +508,7 @@ organism="${organism:-human}"
 
 # Resolve relative reference paths against the repository root, so the
 # shipped configs (which point into data/reference/) work from any directory
-for ref_var in genome_fasta gtf_file star_index gene_model_bed; do
+for ref_var in genome_fasta gtf_file star_index gene_model_bed genebody_bed; do
     if [[ -n "${!ref_var}" ]] && [[ "${!ref_var}" != /* ]]; then
         printf -v "${ref_var}" '%s/%s' "${SCRIPT_DIR}" "${!ref_var}"
     fi
@@ -518,6 +519,7 @@ log "INFO" "  Genome FASTA:  ${genome_fasta:-Not specified}"
 log "INFO" "  GTF file:      ${gtf_file:-Not specified}"
 log "INFO" "  STAR index:    ${star_index:-Not specified}"
 log "INFO" "  Gene BED:      ${gene_model_bed:-Not specified}"
+log "INFO" "  Gene body BED: ${genebody_bed:-Not specified (uses Gene BED)}"
 log "INFO" "  Organism:      ${organism}"
 
 # ==============================================================================
@@ -721,6 +723,7 @@ if [[ "${start_step}" -le 5 ]] && [[ "${end_step}" -ge 5 ]]; then
             -t "${threads}")
 
         [[ -n "${gene_model_bed}" ]] && cmd+=(-b "${gene_model_bed}")
+        [[ -n "${genebody_bed}" ]] && cmd+=(-H "${genebody_bed}")
         [[ -n "${gtf_file}" ]] && cmd+=(-g "${gtf_file}")
 
         run_cmd "${cmd[@]}" 2>&1 | tee -a "${output_dir}/logs/05_qc_${sample_id}.log"
