@@ -25,17 +25,18 @@ Verified recipe and results: `validation/RESULTS_2026-09-24.md`.
 - [x] `scripts/05_mapping_qc.sh`: gene body coverage on housekeeping genes
       (`scripts/make_housekeeping_bed.py`; ~10 min/sample instead of hours);
       RSeQC `log.txt` no longer written to the launch directory
-- [ ] Acceptance test (`validation/compare_to_portal.py`). First full run
-      (2026-09-26): STAR exact vs portal on all 4 samples, Pearson r 1.000000,
-      99.9% of genes exact; a few genes off by just over 1 read, from
-      run-dependent read order. Remaining:
-  - [ ] Confirm two runs (32 and 16 threads, `validation/work/det_{a,b}`) now
-        give identical counts
-  - [ ] Revise pass criteria: exact vs STAR stats and vs a repeat run; small
+- [x] Acceptance test (`validation/compare_to_portal.py`): PASS on all 4
+      LJQQSK samples (2026-09-26, `validation/ACCEPTANCE_2026-09-26.txt`).
+      STAR exact vs portal; ~0.1% of genes differ by at most 3 reads
+      (read order); 32- and 16-thread runs identical.
+  - [x] Confirm two runs (32 and 16 threads) give identical results
+  - [x] Revise pass criteria: exact vs STAR stats and vs a repeat run; small
         tolerance vs the portal, whose read order cannot be reproduced
-  - [ ] Run steps 8-10 (edgeR, GSEA) on the final counts; untested since the
-        GSEA fixes
-  - [ ] Update `validation/RESULTS_2026-09-24.md` with the read-order finding
+  - [x] Update `validation/RESULTS_2026-09-24.md` with the read-order finding
+- [ ] Run steps 8-10 (edgeR, GSEA) on the final counts; untested since the
+      GSEA fixes
+- [ ] Check QC steps 5-6 finished on the full run (housekeeping gene body
+      coverage, MultiQC)
 
 ## 2. Make it easy for others to use
 

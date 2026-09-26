@@ -1,0 +1,78 @@
+=== LJQQSK: run_pipeline.sh output vs portal ===
+pipeline output: validation/work/det_a/out
+repeat run:      validation/work/det_b/out
+tolerances: dedup 100 ppm; genes differing 0.5%; max gene diff 10 reads; total 10 ppm; Pearson >= 0.99999
+
+LJQQSK_1_BR4_1_US_r1
+  vs portal (exact)
+    STAR unique    ours    8537162  portal    8537162  +0  PASS
+    STAR multi     ours    1516013  portal    1516013  +0  PASS
+  vs portal (tolerance)
+    dedup unique   ours    6870698  portal    6870699  -1 (-0.1 ppm)  PASS
+    dedup multi    ours    1258416  portal    1258396  +20 (+15.9 ppm)  PASS
+    counts total   ours  6900180.5  portal  6900180.3  (+0.02 ppm)  PASS
+    genes differing 93 of 78409 (0.119%)  PASS
+    max gene diff  1.000 reads  PASS
+    Pearson r (log1p) 1.0000000  PASS
+  vs repeat run (exact)
+    STAR stats     identical  PASS
+    dedup BAM      identical records  PASS
+    counts         max |diff| 0  PASS
+  reproduce_portal.sh run vs portal (information only)
+    genes differing 88  max gene diff 1.000 reads  total -0.50 ppm
+
+LJQQSK_2_BR4_2_US_r2
+  vs portal (exact)
+    STAR unique    ours   10466756  portal   10466756  +0  PASS
+    STAR multi     ours    1921981  portal    1921981  +0  PASS
+  vs portal (tolerance)
+    dedup unique   ours    8670471  portal    8670467  +4 (+0.5 ppm)  PASS
+    dedup multi    ours    1628090  portal    1628109  -19 (-11.7 ppm)  PASS
+    counts total   ours  8676726.1  portal  8676722.8  (+0.38 ppm)  PASS
+    genes differing 79 of 78409 (0.101%)  PASS
+    max gene diff  1.500 reads  PASS
+    Pearson r (log1p) 1.0000000  PASS
+  vs repeat run (exact)
+    STAR stats     identical  PASS
+    dedup BAM      identical records  PASS
+    counts         max |diff| 0  PASS
+  reproduce_portal.sh run vs portal (information only)
+    genes differing 75  max gene diff 2.000 reads  total -0.53 ppm
+
+LJQQSK_3_BR4_3_LIPA_r1
+  vs portal (exact)
+    STAR unique    ours   10377205  portal   10377205  +0  PASS
+    STAR multi     ours    1764316  portal    1764316  +0  PASS
+  vs portal (tolerance)
+    dedup unique   ours    8526944  portal    8526943  +1 (+0.1 ppm)  PASS
+    dedup multi    ours    1489395  portal    1489401  -6 (-4.0 ppm)  PASS
+    counts total   ours  8499388.3  portal  8499392.0  (-0.44 ppm)  PASS
+    genes differing 90 of 78409 (0.115%)  PASS
+    max gene diff  3.000 reads  PASS
+    Pearson r (log1p) 0.9999992  PASS
+  vs repeat run (exact)
+    STAR stats     identical  PASS
+    dedup BAM      identical records  PASS
+    counts         max |diff| 0  PASS
+  reproduce_portal.sh run vs portal (information only)
+    genes differing 63  max gene diff 1.000 reads  total +0.25 ppm
+
+LJQQSK_4_BR4_4_LIPA_r2
+  vs portal (exact)
+    STAR unique    ours    9880900  portal    9880900  +0  PASS
+    STAR multi     ours    1698777  portal    1698777  +0  PASS
+  vs portal (tolerance)
+    dedup unique   ours    8068767  portal    8068769  -2 (-0.2 ppm)  PASS
+    dedup multi    ours    1420033  portal    1420049  -16 (-11.3 ppm)  PASS
+    counts total   ours  8038694.6  portal  8038703.4  (-1.09 ppm)  PASS
+    genes differing 91 of 78409 (0.116%)  PASS
+    max gene diff  3.000 reads  PASS
+    Pearson r (log1p) 1.0000000  PASS
+  vs repeat run (exact)
+    STAR stats     identical  PASS
+    dedup BAM      identical records  PASS
+    counts         max |diff| 0  PASS
+  reproduce_portal.sh run vs portal (information only)
+    genes differing 80  max gene diff 5.000 reads  total -1.02 ppm
+
+RESULT: PASS (all checks)
