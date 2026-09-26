@@ -113,6 +113,20 @@ AVAILABLE_GENE_SETS = {
     ]
 }
 
+# Hallmark gene sets are fetched directly from MSigDB in the organism's own gene
+# symbols (h.all for human, mh.all for mouse). The Enrichr library of the same
+# name is human-only, so mouse symbols would never match it. The release is
+# pinned so reruns use identical gene sets.
+MSIGDB_VERSION = '2024.1'
+MSIGDB_HALLMARK = {
+    'human': ('h.all', f'{MSIGDB_VERSION}.Hs'),
+    'mouse': ('mh.all', f'{MSIGDB_VERSION}.Mm'),
+}
+
+# Fewer ranked genes than this matching the gene sets almost always means an
+# identifier mismatch (e.g. Ensembl IDs vs symbols, or wrong organism)
+MIN_GENE_OVERLAP = 1000
+
 # ==============================================================================
 # UTILITY FUNCTIONS
 # ==============================================================================
@@ -208,9 +222,56 @@ def load_ranked_genes(filepath: str) -> pd.Series:
     return ranked_genes
 
 
+def resolve_gene_sets(gene_set: str, organism: str):
+    """
+    Return the gene set library to pass to GSEApy.
+
+    MSigDB Hallmark is fetched from MSigDB in the organism's own symbols; any
+    other name is passed through to GSEApy as an Enrichr library name.
+
+    Args:
+        gene_set: Gene set database name
+        organism: 'human' or 'mouse'
+
+    Returns:
+        Dict of gene set name -> gene list, or the library name unchanged
+    """
+    if not gene_set.startswith('MSigDB_Hallmark'):
+        return gene_set
+    category, dbver = MSIGDB_HALLMARK[organism]
+    logger.info(f"Fetching MSigDB {category} (release {dbver})")
+    return gp.Msigdb().get_gmt(category=category, dbver=dbver)
+
+
+def check_gene_overlap(ranked_genes: pd.Series, gene_sets) -> None:
+    """
+    Exit with an error if too few ranked genes appear in the gene sets.
+
+    Without this check an ID mismatch makes GSEA fail and the report silently
+    says "No results".
+
+    Args:
+        ranked_genes: Series with gene symbols as index
+        gene_sets: Dict of gene set name -> gene list (library names are skipped)
+    """
+    if not isinstance(gene_sets, dict):
+        return
+    set_genes = {g for genes in gene_sets.values() for g in genes}
+    overlap = len(set_genes.intersection(ranked_genes.index))
+    logger.info(f"{overlap} of {len(set_genes)} gene set genes found in ranked list")
+    if overlap < MIN_GENE_OVERLAP:
+        logger.error(
+            f"Only {overlap} ranked genes match the gene sets. Check that the ranked "
+            f"list uses gene symbols and that --organism is correct. "
+            f"First ranked IDs: {list(ranked_genes.index[:5])}"
+        )
+        sys.exit(1)
+
+
 def run_gsea_prerank(
     ranked_genes: pd.Series,
     gene_set: str,
+    organism: str,
     output_dir: str,
     min_size: int = 15,
     max_size: int = 500,
@@ -229,6 +290,7 @@ def run_gsea_prerank(
     Args:
         ranked_genes: Series with gene names as index and rank metric as values
         gene_set: Name of gene set database to use
+        organism: 'human' or 'mouse' (selects Hallmark symbols)
         output_dir: Directory for GSEA output
         min_size: Minimum gene set size to consider
         max_size: Maximum gene set size to consider
@@ -248,9 +310,12 @@ def run_gsea_prerank(
         # 4. Normalized ES (NES) accounts for gene set size
         # 5. P-value estimated by permutation testing
 
+        gene_sets = resolve_gene_sets(gene_set, organism)
+        check_gene_overlap(ranked_genes, gene_sets)
+
         gsea_results = gp.prerank(
             rnk=ranked_genes,
-            gene_sets=gene_set,
+            gene_sets=gene_sets,
             outdir=os.path.join(output_dir, gene_set.replace(' ', '_')),
             min_size=min_size,
             max_size=max_size,
@@ -456,6 +521,7 @@ def main():
         results = run_gsea_prerank(
             ranked_genes=ranked_genes,
             gene_set=gene_set,
+            organism=args.organism,
             output_dir=args.output,
             min_size=args.min_size,
             max_size=args.max_size,

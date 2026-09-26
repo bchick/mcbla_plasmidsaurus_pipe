@@ -382,12 +382,24 @@ log_message("INFO", paste("Significant genes saved:", sig_output))
 
 # Create ranked gene list for GSEA
 # GSEA uses pre-ranked gene lists based on a ranking metric
-# We use signed -log10(p-value) which captures both significance and direction
-rank_metric <- sign(de_results$logFC) * -log10(de_results$PValue)
-ranked_genes <- data.frame(
-    gene = de_results$gene_id,
-    rank = rank_metric
-)
+# We use signed -log10(p-value) which captures both significance and direction.
+# P-values that underflow to 0 would give Inf, so floor them at the smallest double.
+rank_metric <- sign(de_results$logFC) * -log10(pmax(de_results$PValue, .Machine$double.xmin))
+
+# MSigDB gene sets are keyed by gene symbol, not Ensembl ID, so rank by symbol.
+# Fall back to unversioned Ensembl IDs only if no symbols are available.
+if ("gene_name" %in% colnames(de_results)) {
+    rank_ids <- de_results$gene_name
+} else {
+    log_message("WARN", "No gene_name column; ranking by Ensembl ID (GSEA against MSigDB will find no overlap)")
+    rank_ids <- sub("\\.[0-9]+$", "", de_results$gene_id)
+}
+ranked_genes <- data.frame(gene = rank_ids, rank = rank_metric)
+ranked_genes <- ranked_genes[!is.na(ranked_genes$gene) & ranked_genes$gene != "", ]
+
+# Several Ensembl genes can share a symbol; keep the most extreme entry per symbol
+ranked_genes <- ranked_genes[order(abs(ranked_genes$rank), decreasing = TRUE), ]
+ranked_genes <- ranked_genes[!duplicated(ranked_genes$gene), ]
 ranked_genes <- ranked_genes[order(ranked_genes$rank, decreasing = TRUE), ]
 
 rnk_output <- file.path(opt$output, paste0("ranked_genes_", contrast_name, ".rnk"))
