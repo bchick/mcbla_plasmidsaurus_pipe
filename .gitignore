@@ -129,3 +129,6 @@ envs/
 .pixi/
 validation/*/
 *.zip
+
+# Python bytecode
+__pycache__/
