@@ -1,0 +1,33 @@
+# Reproducible software environment for the pipeline.
+# Versions are pinned to those Plasmidsaurus uses (see their BAM @PG headers
+# and methods) so that results agree with the portal.
+#
+#   pixi install          # create the environment in .pixi/
+#   pixi run <command>    # run a command inside it
+[workspace]
+name = "mcbla-plasmidsaurus-pipe"
+channels = ["conda-forge", "bioconda"]
+platforms = ["linux-64"]
+
+[dependencies]
+star = "==2.7.11b"
+fastp = "==0.24.0"
+samtools = "==1.22.1"
+umicollapse = "==1.1.0"
+subread = "==2.1.1"
+rseqc = "==5.0.4"
+qualimap = "==2.3"
+multiqc = "==1.32"
+pigz = "*"
+python = "3.12.*"
+pyyaml = "*"
+pandas = "*"
+gseapy = "*"
+r-base = "4.4.*"
+bioconductor-edger = "*"
+r-optparse = "*"
+r-pheatmap = "*"
+r-ggplot2 = "*"
+r-ggrepel = "*"
+r-rcolorbrewer = "*"
+matplotlib = "*"
