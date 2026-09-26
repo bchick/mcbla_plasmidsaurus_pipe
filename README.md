@@ -22,7 +22,7 @@ This pipeline implements a comprehensive RNA-seq workflow from raw FASTQ files t
 | 8 | featureCounts | 2.1.1 | Gene expression quantification |
 | 9 | edgeR | 4.0.16 | TMM normalization and sample correlations |
 | 10 | edgeR | 4.0.16 | Differential expression analysis |
-| 11 | GSEApy | 0.12 | Functional enrichment (MSigDB Hallmark) |
+| 11 | GSEApy | 1.3.1 | Functional enrichment (MSigDB Hallmark) |
 
 ## Requirements
 
@@ -43,7 +43,7 @@ R >= 4.0
   - edgeR >= 4.0.16
   - DESeq2 (optional)
 Python >= 3.8
-  - gseapy >= 0.12
+  - gseapy >= 1.3.1
 ```
 
 ### Reference Files

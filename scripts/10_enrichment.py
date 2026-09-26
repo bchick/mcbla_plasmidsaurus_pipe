@@ -26,7 +26,7 @@ Arguments:
 
 Dependencies:
     - Python >= 3.8
-    - gseapy >= 0.12
+    - gseapy >= 1.3.1 (gseapy.Msigdb, used to fetch Hallmark sets)
     - pandas
     - matplotlib
 

@@ -38,7 +38,7 @@ This is a bioinformatics pipeline for processing and analyzing RNA-seq data from
 9. **Sample correlations**: TMM normalization, Pearson correlation (for heatmap/PCA)
 10. **Differential expression**: edgeR v4.0.16
     - Low-expression filtering: `edgeR::filterByExpr` (default values)
-11. **Functional enrichment**: GSEApy v0.12
+11. **Functional enrichment**: GSEApy v1.3.1
     - MSigDB Hallmark gene set
     - Human and mouse samples
 

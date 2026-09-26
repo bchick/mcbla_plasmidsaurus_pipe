@@ -391,7 +391,7 @@ print_header "PYTHON ENVIRONMENT"
 if check_command "python3" "--version"; then
 
     print_subheader "Required Python Packages"
-    check_python_package "gseapy" "0.12"
+    check_python_package "gseapy" "1.3.1"
     check_python_package "pandas"
     check_python_package "matplotlib"
     check_python_package "numpy"
