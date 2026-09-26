@@ -191,8 +191,8 @@ multiqc_cmd=(
     --title "${title}"
     # Create clean output structure
     --filename "multiqc_report"
-    # Export data in multiple formats
-    --export
+    # No --export: static PNG/SVG/PDF plots need Kaleido >= 1, which in turn
+    # needs a Chrome browser, and every plot is already in the HTML report.
     # Include plots data for downstream analysis
     --data-format json
     # Zip data directory to save space
