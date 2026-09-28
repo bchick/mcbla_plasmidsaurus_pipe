@@ -8,6 +8,11 @@ A robust, production-ready bioinformatics pipeline for processing and analyzing 
 
 This pipeline implements a comprehensive RNA-seq workflow from raw FASTQ files through differential expression and functional enrichment analysis. The workflow is designed to be reproducible, well-documented, and suitable for production use.
 
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/images/subway_map_dark.svg">
+  <img alt="mcbla-plasmidsaurus-pipe subway map: FASTQ through fastp, STAR, samtools sort and UMICollapse to final BAMs; featureCounts, edgeR TMM normalization and sample correlation to normalized counts; a QC branch of RSeQC, gene body coverage and Qualimap ending in MultiQC; then edgeR quasi-likelihood contrasts with tables, MA and volcano plots, and GSEApy prerank enrichment on MSigDB Hallmark" src="docs/images/subway_map_light.svg">
+</picture>
+
 ## Pipeline Steps
 
 | Step | Tool | Version | Description |
