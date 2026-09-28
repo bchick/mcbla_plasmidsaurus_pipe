@@ -51,6 +51,11 @@ Python >= 3.8
 - Reference genome (FASTA)
 - Gene annotation (GTF)
 - STAR genome index
+- BED12 gene model (RSeQC), and optionally a housekeeping-gene BED12
+
+On the lab server all of these are in `/data/resource` and listed in
+`/data/resource/manifest.yaml`: mouse is the Plasmidsaurus portal's Ensembl
+114 GRCm39 + ERCC92 build, and human is GENCODE v44.
 
 ## Project Structure
 
@@ -66,39 +71,42 @@ Python >= 3.8
 
 ## Quick Start
 
+**On the Salk lab server** the references are already in `/data/resource`.
+`pixi run init` asks which genome you are using and writes a project config
+that points at them:
+
 ```bash
-# 1. Clone the repository
-git clone <repository-url>
-cd mcbla_plasmidsaurus_pipe
-
-# 2. Configure the pipeline
-cp config/config.template.yaml config/config.yaml
-# Edit config/config.yaml with your paths and parameters
-
-# 3. Run the pipeline
-./run_pipeline.sh -i /path/to/fastq -o results/ -c config/config.yaml
+pixi install
+pixi run init --list                                   # hg38 (GENCODE v44) or mm39 (Ensembl 114 + ERCC92)
+pixi run init --dir /data/<user>/<project> --genome mm39
+# edit <project>/samples.tsv and edger.contrasts in <project>/config.yaml, then
+pixi run bash run_pipeline.sh -i /path/to/fastq -o /data/<user>/<project>/results \
+    -c /data/<user>/<project>/config.yaml -m /data/<user>/<project>/samples.tsv --dry-run
 ```
+
+Agents running the pipeline for someone should follow [AGENTS.md](AGENTS.md).
+
+**Elsewhere:** copy `config/config.template.yaml`, fill in your reference
+paths (FASTA, GTF, STAR index, BED12 gene model), and pass it with `-c`.
 
 ## Usage
 
 ```bash
-./run_pipeline.sh [OPTIONS]
+pixi run bash run_pipeline.sh -i <input_dir> -o <output_dir> [-g genome | -c config] [OPTIONS]
 
-Options:
-  -i, --input DIR       Input directory containing FASTQ files (required)
-  -o, --output DIR      Output directory for results (required)
-  -c, --config FILE     Configuration file (default: config/config.yaml)
-  -t, --threads INT     Number of threads (default: 8)
-  -s, --step STEP       Start from specific step (default: 1)
-  -h, --help            Display help message
-
-Examples:
-  # Run full pipeline
-  ./run_pipeline.sh -i data/fastq/ -o results/ -t 16
-
-  # Resume from alignment step
-  ./run_pipeline.sh -i data/fastq/ -o results/ -s 3
+  -i, --input       directory with the FASTQ (or BAM) files
+  -o, --output      output directory
+  -g, --genome      hg38 (config/config.human.yaml) or mm39 (config/config.mouse.yaml);
+                    mm10 is a deprecated alias of mm39
+  -c, --config      YAML config (instead of -g), e.g. the one `pixi run init` wrote
+  -m, --metadata    sample sheet (sample_id, condition, replicate); needed for steps 8-10
+  -y, --type        fastq (default) or bam (starts at step 5)
+  -s, --start-step / -e, --end-step   steps 1-10
+  -t, --threads     threads (default 8)
+  -d, --dry-run     print the commands only
 ```
+
+See `./run_pipeline.sh -h` for the full help.
 
 ## Output Structure
 

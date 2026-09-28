@@ -2,6 +2,14 @@
 
 This file provides guidance to Claude Code (claude.ai/claude-code) when working with this repository.
 
+**Running the pipeline for a lab member?** Follow [AGENTS.md](AGENTS.md): ask
+which genome, then set up the project with `pixi run init`. Use the shared
+references in `/data/resource` (listed in `/data/resource/manifest.yaml`) and
+never build or download your own. The rest of this file is for developing the
+pipeline.
+
+@AGENTS.md
+
 ## Project Overview
 
 This is a bioinformatics pipeline for processing and analyzing RNA-seq data from Plasmidsaurus sequencing services. This is **not** for plasmid sequencing/verification - it processes RNA-seq data.
@@ -13,43 +21,45 @@ This is a bioinformatics pipeline for processing and analyzing RNA-seq data from
 
 ## Pipeline Steps
 
-1. **FastQ generation & demux**: BCL Convert v4.3.6, fqtk v0.3.1
-2. **Read filtering**: FastP v0.24.0
+Plasmidsaurus delivers demultiplexed FASTQs (they run BCL Convert v4.3.6 and
+fqtk v0.3.1); this pipeline starts from those.
+
+1. **Read filtering**: FastP v0.24.0
    - Poly-X tail trimming
    - 3' quality-based tail trimming
    - Min Phred quality: 15
    - Min read length: 50 bp
-3. **Alignment**: STAR v2.7.11
+2. **Alignment**: STAR v2.7.11
    - Non-canonical splice junction removal
    - Output unmapped reads
-4. **BAM sorting**: samtools v1.22.1 (coordinate sort)
-5. **UMI deduplication**: UMICollapse v1.1.0 (PCR + optical duplicate removal)
-6. **Mapping QC**: RSeQC v5.0.4, Qualimap v2.3
+3. **BAM sorting**: samtools v1.22.1 (coordinate sort)
+4. **UMI deduplication**: UMICollapse v1.1.0 (PCR + optical duplicate removal)
+5. **Mapping QC**: RSeQC v5.0.4, Qualimap v2.3
    - Alignment quality metrics
    - Strand specificity
    - Read distribution across genomic features
-7. **QC reporting**: MultiQC v1.32
-8. **Gene quantification**: featureCounts (subread v2.1.1)
+6. **QC reporting**: MultiQC v1.32
+7. **Gene quantification**: featureCounts (subread v2.1.1)
    - Strand-specific counting
    - Multi-mapping read fractional assignment
-   - Features: exons and 3' UTR
+   - Features: whole gene bodies (`-t gene`), MAPQ 0 (keeps STAR multi-mappers)
    - Grouped by gene_id
    - Annotated with gene biotype and GTF metadata
-9. **Sample correlations**: TMM normalization, Pearson correlation (for heatmap/PCA)
-10. **Differential expression**: edgeR v4.0.16
+8. **Sample correlations**: TMM normalization, Pearson correlation (for heatmap/PCA)
+9. **Differential expression**: edgeR v4.0.16
     - Low-expression filtering: `edgeR::filterByExpr` (default values)
-11. **Functional enrichment**: GSEApy v1.3.1
+10. **Functional enrichment**: GSEApy v1.3.1
     - MSigDB Hallmark gene set
     - Human and mouse samples
 
 ## Common Commands
 
 ```bash
-# Make scripts executable
-chmod +x *.sh
-
-# Run the main pipeline (update as developed)
-# ./run_pipeline.sh <input_dir> <output_dir>
+pixi install                                   # pinned tool versions (pixi.toml)
+pixi run init --dir <project> --genome mm39    # project config from /data/resource/manifest.yaml
+pixi run bash run_pipeline.sh -i <fastq_dir> -o <project>/results \
+    -c <project>/config.yaml -m <project>/samples.tsv [--dry-run]
+pixi run bash validation/reproduce_portal.sh   # acceptance test vs the portal (LJQQSK)
 ```
 
 ## Project Structure
@@ -189,23 +199,25 @@ log "ERROR: Alignment failed for ${input_file}"
 
 ### Command Documentation
 
-When calling bioinformatics tools, document key parameters:
+When calling bioinformatics tools, document key parameters. For example, the
+STAR call in `scripts/02_align.sh` uses the portal's own options (from its BAM
+`@PG` header), plus SAM output in input order (`--outSAMorder
+PairedKeepInputOrder`) so results do not depend on thread timing. Do not add
+ENCODE-style filters, which break concordance:
 
 ```bash
-# Run STAR alignment
-# --outFilterType BySJout: Filter by splice junctions for cleaner output
-# --outFilterMultimapNmax 20: Allow up to 20 multi-mapping locations
-# --alignSJoverhangMin 8: Minimum overhang for unannotated junctions
-# --outSAMtype BAM SortedByCoordinate: Output coordinate-sorted BAM
+# STAR defaults plus the portal's three options:
+# --outFilterIntronMotifs RemoveNoncanonical: drop non-canonical junctions
+# --outReadsUnmapped Fastx: keep unmapped reads for inspection
+# --outSAMattributes NH HI AS nM NM MD: tags the portal BAMs carry
 STAR \
     --runThreadN "${threads}" \
     --genomeDir "${genome_index}" \
-    --readFilesIn "${input_r1}" "${input_r2}" \
+    --readFilesIn "${input_r1}" \
     --readFilesCommand zcat \
-    --outFilterType BySJout \
-    --outFilterMultimapNmax 20 \
-    --alignSJoverhangMin 8 \
-    --outSAMtype BAM SortedByCoordinate \
+    --outFilterIntronMotifs RemoveNoncanonical \
+    --outReadsUnmapped Fastx \
+    --outSAMattributes NH HI AS nM NM MD \
     --outFileNamePrefix "${output_prefix}"
 ```
 

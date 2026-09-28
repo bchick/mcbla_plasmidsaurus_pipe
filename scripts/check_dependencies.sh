@@ -438,7 +438,7 @@ fi
 
 print_subheader "Genome FASTA Files"
 search_reference "Human genome (hg38/GRCh38)" "*.fa" "${ref_dirs[@]}" /data/**/hg38* /data/**/GRCh38* 2>/dev/null || true
-search_reference "Mouse genome (mm10/GRCm38)" "*.fa" "${ref_dirs[@]}" /data/**/mm10* /data/**/GRCm38* 2>/dev/null || true
+search_reference "Mouse genome (mm39/GRCm39)" "*.fa" "${ref_dirs[@]}" /data/**/mm39* /data/**/GRCm39* 2>/dev/null || true
 
 print_subheader "GTF Annotation Files"
 search_reference "GTF annotations" "*.gtf" "${ref_dirs[@]}" /data/**/annotation* 2>/dev/null || true

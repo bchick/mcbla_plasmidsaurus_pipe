@@ -14,7 +14,7 @@
 # Arguments:
 #   -i, --input         Directory containing input files (required)
 #   -o, --output        Output directory for results (required)
-#   -g, --genome        Reference genome: 'hg38' or 'mm10' (auto-selects config)
+#   -g, --genome        Reference genome: 'hg38' or 'mm39' (auto-selects config)
 #   -c, --config        Path to YAML configuration file (alternative to -g)
 #   -y, --type          Input data type: 'fastq' or 'bam' (default: fastq)
 #   -s, --start-step    Step to start from (1-10, default: 1)
@@ -44,7 +44,7 @@
 #   ./run_pipeline.sh -i data/fastq/ -o results/ -g hg38 -m config/samples.tsv
 #
 #   # Run from deduplicated BAM files (mouse)
-#   ./run_pipeline.sh -i data/bam/ -o results/ -y bam -g mm10 -m config/samples.tsv
+#   ./run_pipeline.sh -i data/bam/ -o results/ -y bam -g mm39 -m config/samples.tsv
 #
 #   # Run only QC steps
 #   ./run_pipeline.sh -i data/fastq/ -o results/ -g hg38 -s 1 -e 6
@@ -110,8 +110,9 @@ Plasmidsaurus RNA-seq Analysis Pipeline
 Required Arguments:
   -i, --input         Directory containing input files (FASTQ or BAM)
   -o, --output        Output directory for results
-  -g, --genome        Reference genome: 'hg38' (human) or 'mm10' (mouse)
-                      Auto-selects config file (alternative to -c)
+  -g, --genome        Reference genome: 'hg38' (human, GENCODE v44) or 'mm39'
+                      (mouse, Ensembl 114 + ERCC92). Auto-selects config file
+                      (alternative to -c). 'mm10' is a deprecated alias of mm39
   -c, --config        Path to YAML configuration file (alternative to -g)
 
 Optional Arguments:
@@ -141,7 +142,7 @@ Examples:
   ${SCRIPT_NAME} -i data/fastq/ -o results/ -g hg38 -m config/samples.tsv
 
   # Run from deduplicated BAM files (mouse)
-  ${SCRIPT_NAME} -i data/bam/ -o results/ -y bam -g mm10 -m config/samples.tsv
+  ${SCRIPT_NAME} -i data/bam/ -o results/ -y bam -g mm39 -m config/samples.tsv
 
   # Run only preprocessing (steps 1-4)
   ${SCRIPT_NAME} -i data/fastq/ -o results/ -g hg38 -s 1 -e 4
@@ -374,7 +375,7 @@ end_step="${DEFAULT_END_STEP}"
 threads="${DEFAULT_THREADS}"
 dry_run=false
 input_type="fastq"    # Input data type: 'fastq' or 'bam'
-genome=""             # Genome shorthand: 'hg38' or 'mm10'
+genome=""             # Genome shorthand: 'hg38' or 'mm39'
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
@@ -443,9 +444,14 @@ log "INFO" ""
 # Auto-select config file based on genome if provided
 if [[ -n "${genome}" ]]; then
     case "${genome}" in
-        hg38) config_file="${SCRIPT_DIR}/config/config.human.yaml" ;;
-        mm10) config_file="${SCRIPT_DIR}/config/config.mouse.yaml" ;;
-        *) die "Unknown genome: ${genome}. Use 'hg38' or 'mm10'" ;;
+        hg38|GRCh38|human) config_file="${SCRIPT_DIR}/config/config.human.yaml" ;;
+        mm39|GRCm39|mouse) config_file="${SCRIPT_DIR}/config/config.mouse.yaml" ;;
+        mm10)
+            # The mouse config has always been GRCm39 (Ensembl 114 + ERCC92);
+            # 'mm10' was a mislabel. Kept so old commands still run.
+            log "WARN" "'-g mm10' is deprecated: the mouse reference is GRCm39 (mm39), not mm10. Use '-g mm39'."
+            config_file="${SCRIPT_DIR}/config/config.mouse.yaml" ;;
+        *) die "Unknown genome: ${genome}. Use 'hg38' (human) or 'mm39' (mouse)" ;;
     esac
     log "INFO" "Auto-selected config for genome ${genome}: ${config_file}"
 fi

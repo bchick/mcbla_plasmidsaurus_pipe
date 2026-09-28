@@ -32,3 +32,10 @@ r-ggrepel = "*"
 r-rcolorbrewer = "*"
 matplotlib = "*"
 lxml = ">=6.1.3,<7"
+
+[tasks]
+# Write a project config from the lab resource manifest (/data/resource/manifest.yaml).
+# Interactive, or as flags: --dir --genome
+init = "python scripts/init_config.py"
+# init_config.py against a fixture manifest
+test-init = "bash validation/test_init.sh"
